@@ -1,0 +1,308 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;600;700;800&display=swap');
+
+:root {
+  --font-heading: 'Outfit', sans-serif;
+  --font-body: 'Inter', sans-serif;
+
+  /* Premium Organic & Oceanic Educational Palette */
+  --bg-primary: #050b11;
+  --bg-secondary: #0c1724;
+  --primary: #10b981; /* Vibrant Emerald Mint Green */
+  --primary-glow: rgba(16, 185, 129, 0.35);
+  
+  --secondary: #0ea5e9; /* Luminous Sky Teal Blue */
+  --secondary-glow: rgba(14, 165, 233, 0.35);
+  
+  --accent: #f59e0b; /* Honey Sunflower Gold */
+  --accent-glow: rgba(245, 158, 11, 0.35);
+  
+  --success: #059669;
+  --success-glow: rgba(5, 150, 105, 0.3);
+  --danger: #ef4444;
+  --danger-glow: rgba(239, 68, 68, 0.4);
+
+  --text-primary: #f8fafc;
+  --text-secondary: #94a3b8;
+  --text-muted: #64748b;
+  
+  --glass-bg: rgba(12, 23, 36, 0.75);
+  --glass-border: rgba(255, 255, 255, 0.08);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  overflow-x: hidden;
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-heading);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+/* Beautiful Bioluminescent Botanical Gradients */
+.glow-mesh {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: -1;
+  background: radial-gradient(circle at 15% 15%, rgba(16, 185, 129, 0.12) 0%, transparent 40%),
+              radial-gradient(circle at 85% 85%, rgba(14, 165, 233, 0.15) 0%, transparent 45%);
+  filter: blur(80px);
+  pointer-events: none;
+}
+
+/* Glassmorphism Styles */
+.glass-card {
+  background: var(--glass-bg);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--glass-border);
+  border-radius: 24px;
+  box-shadow: 0 10px 40px 0 rgba(0, 0, 0, 0.5);
+}
+
+.glass-btn {
+  background: rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: var(--text-primary);
+  border-radius: 16px;
+  cursor: pointer;
+  font-family: var(--font-heading);
+  font-weight: 600;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.glass-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: var(--primary);
+  box-shadow: 0 0 15px var(--primary-glow);
+  transform: translateY(-2px);
+}
+
+.glass-btn:active {
+  transform: translateY(0);
+}
+
+.glass-btn.primary {
+  background: linear-gradient(135deg, var(--primary) 0%, #059669 100%);
+  border-color: transparent;
+  box-shadow: 0 4px 15px var(--primary-glow);
+}
+
+.glass-btn.primary:hover {
+  box-shadow: 0 4px 25px var(--primary-glow), 0 0 10px var(--primary);
+}
+
+.glass-btn.secondary {
+  background: linear-gradient(135deg, var(--secondary) 0%, #0284c7 100%);
+  border-color: transparent;
+  box-shadow: 0 4px 15px var(--secondary-glow);
+}
+
+.glass-btn.secondary:hover {
+  box-shadow: 0 4px 25px var(--secondary-glow), 0 0 10px var(--secondary);
+}
+
+/* Custom Interactive Inputs */
+.glass-select {
+  background: rgba(12, 23, 36, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 12px;
+  color: var(--text-primary);
+  padding: 8px 16px;
+  font-family: var(--font-heading);
+  font-weight: 600;
+  outline: none;
+  cursor: pointer;
+}
+
+/* Viewfinder Laser Scanner Animation */
+.viewfinder-box {
+  position: relative;
+  border-radius: 20px;
+  overflow: hidden;
+  box-shadow: 0 0 0 9999px rgba(5, 11, 17, 0.7);
+  border: 2px solid rgba(255, 255, 255, 0.2);
+}
+
+.viewfinder-corners {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+}
+
+.viewfinder-corners::before,
+.viewfinder-corners::after {
+  content: '';
+  position: absolute;
+  width: 24px;
+  height: 24px;
+  border-color: var(--primary);
+  border-style: solid;
+}
+
+/* Top Left & Right Corners */
+.viewfinder-corners::before {
+  top: 10px;
+  left: 10px;
+  border-width: 4px 0 0 4px;
+  border-top-left-radius: 8px;
+}
+
+.viewfinder-corners::after {
+  top: 10px;
+  right: 10px;
+  border-width: 4px 4px 0 0;
+  border-top-right-radius: 8px;
+}
+
+.viewfinder-corners-bottom {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+}
+
+.viewfinder-corners-bottom::before,
+.viewfinder-corners-bottom::after {
+  content: '';
+  position: absolute;
+  width: 24px;
+  height: 24px;
+  border-color: var(--primary);
+  border-style: solid;
+}
+
+.viewfinder-corners-bottom::before {
+  bottom: 10px;
+  left: 10px;
+  border-width: 0 0 4px 4px;
+  border-bottom-left-radius: 8px;
+}
+
+.viewfinder-corners-bottom::after {
+  bottom: 10px;
+  right: 10px;
+  border-width: 0 4px 4px 0;
+  border-bottom-right-radius: 8px;
+}
+
+.laser-line {
+  position: absolute;
+  left: 5%;
+  right: 5%;
+  height: 3px;
+  background: linear-gradient(90deg, transparent, var(--secondary), var(--primary), var(--secondary), transparent);
+  box-shadow: 0 0 12px 2px var(--primary-glow), 0 0 6px var(--secondary-glow);
+  border-radius: 50%;
+  animation: scan 3s ease-in-out infinite;
+}
+
+@keyframes scan {
+  0% { top: 10%; opacity: 0.1; }
+  10% { opacity: 1; }
+  90% { opacity: 1; }
+  100% { top: 90%; opacity: 0.1; }
+}
+
+/* Beating heartbeat pulse effect */
+.heart-pulse {
+  animation: heart-beat 1.2s infinite cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+@keyframes heart-beat {
+  0%, 100% { transform: scale(1); }
+  25% { transform: scale(1.1); }
+  45% { transform: scale(1.05); }
+  60% { transform: scale(1.15); }
+}
+
+/* Floating widgets animations */
+.float-panel {
+  animation: floating 4s ease-in-out infinite;
+}
+
+@keyframes floating {
+  0%, 100% { transform: translateY(0px) rotate(0deg); }
+  50% { transform: translateY(-6px) rotate(0.5deg); }
+}
+
+/* Confetti overlay */
+.confetti-canvas {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 9999;
+}
+
+/* Custom scrollbars */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-primary);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.18);
+}
+
+/* Adaptive mobile layout utility */
+.interactive-container {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 4/3;
+  max-width: 720px;
+  margin: 0 auto;
+  border-radius: 24px;
+  overflow: hidden;
+  background: #03070b;
+  border: 1px solid var(--glass-border);
+}
+
+@media (max-width: 768px) {
+  .interactive-container {
+    aspect-ratio: 1;
+    border-radius: 16px;
+  }
+}
+
+/* Wiggle shake keyframes for wrong quiz answer */
+@keyframes wiggle {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-6px); }
+  75% { transform: translateX(6px); }
+}
