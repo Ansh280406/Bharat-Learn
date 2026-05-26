@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
-import type { Language, PartExplanation } from '../types';
+import type { Language, PartExplanation } from '../../types';
 import { Volume2, Orbit } from 'lucide-react';
 
 interface HeartOverlayProps {

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import type { Language } from '../types';
+import type { Language } from '../../types';
 import { Volume2, Map } from 'lucide-react';
 
 interface BattleMapOverlayProps {

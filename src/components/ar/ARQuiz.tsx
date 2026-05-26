@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import type { QuizQuestion, Language, PageType } from '../types';
+import type { QuizQuestion, Language, PageType } from '../../types';
 import { Award, CheckCircle2, XCircle, ArrowRight, RotateCcw, Volume2 } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
 
 interface ARQuizProps {
   pageType: PageType;
@@ -242,7 +243,7 @@ const quizDatabase: Record<PageType, Record<Language, QuizQuestion[]>> = {
         question: "1526 માં પાણિપતનું પ્રથમ યુદ્ધ કોણે જીત્યું હતું?",
         options: ["ઇબ્રાહિમ લોદી", "બાબર", "હુમાયુ", "હેમચંદ્ર"],
         answerIndex: 1,
-        explanation: "મુઘલ સામ્રાજ્યના સ્થાપક બાબરે અદ્યતન તોપખાના યુક્તિઓનો ઉપયોગ કરીને પાણિપતનું યુદ્ધ જીત્યું હતું."
+        explanation: "મુઘલ સામ્રાજ્યના સ્થાપક બાબરે અદ્યતન તોપખાના યુક્તિઓનો ઉપયોગ કરીને પાણિપતનું યુદ્ધ જીત્યું્યું હતું."
       },
       {
         question: "બાબરે ઇબ્રાહિમ લોદીના વિશાળ લશ્કર સામે જીતવા માટે કઈ સૈન્ય યુક્તિનો ઉપયોગ કર્યો હતો?",
@@ -258,6 +259,68 @@ const quizDatabase: Record<PageType, Record<Language, QuizQuestion[]>> = {
       }
     ]
   },
+  physics: {
+    en: [
+      {
+        question: "When white light passes through a prism, it separates into different colors. What is this process called?",
+        options: ["Reflection", "Dispersion", "Diffraction", "Absorption"],
+        answerIndex: 1,
+        explanation: "Dispersion is the process where white light splits into its constituent colors because different wavelengths refract at slightly different angles."
+      },
+      {
+        question: "Which color of light bends the most when passing through a prism?",
+        options: ["Red", "Yellow", "Green", "Violet"],
+        answerIndex: 3,
+        explanation: "Violet light has the shortest wavelength and therefore bends (refracts) the most when passing through the prism."
+      },
+      {
+        question: "In optics, what term describes the bending of a light ray as it passes from one medium to another?",
+        options: ["Refraction", "Reflection", "Scattering", "Interference"],
+        answerIndex: 0,
+        explanation: "Refraction is the bending of light caused by a change in its speed as it moves from one medium (like air) into another (like glass)."
+      }
+    ],
+    hi: [
+      {
+        question: "जब सफेद प्रकाश एक प्रिज्म से होकर गुजरता है, तो यह विभिन्न रंगों में अलग हो जाता है। इस प्रक्रिया को क्या कहा जाता है?",
+        options: ["परावर्तन (Reflection)", "विक्षेपण (Dispersion)", "विवर्तन (Diffraction)", "अवशोषण (Absorption)"],
+        answerIndex: 1,
+        explanation: "विक्षेपण (Dispersion) वह प्रक्रिया है जहां सफेद प्रकाश अपने घटक रंगों में विभाजित हो जाता है क्योंकि अलग-अलग तरंग दैर्ध्य थोड़े अलग कोणों पर अपवर्तित होते हैं।"
+      },
+      {
+        question: "प्रिज्म से गुजरते समय प्रकाश का कौन सा रंग सबसे ज्यादा झुकता है?",
+        options: ["लाल", "पीला", "हरा", "बैंगनी"],
+        answerIndex: 3,
+        explanation: "बैंगनी प्रकाश की तरंग दैर्ध्य सबसे छोटी होती है और इसलिए प्रिज्म से गुजरते समय यह सबसे अधिक झुकता (अपवर्तित) होता है।"
+      },
+      {
+        question: "प्रकाशिकी में, एक माध्यम से दूसरे माध्यम में जाने पर प्रकाश किरण के झुकने का वर्णन करने के लिए किस शब्द का उपयोग किया जाता है?",
+        options: ["अपवर्तन (Refraction)", "परावर्तन (Reflection)", "प्रकीर्णन (Scattering)", "व्यतिकरण (Interference)"],
+        answerIndex: 0,
+        explanation: "अपवर्तन (Refraction) प्रकाश का झुकना है जो एक माध्यम (जैसे हवा) से दूसरे माध्यम (जैसे कांच) में जाने पर इसकी गति में बदलाव के कारण होता है।"
+      }
+    ],
+    gu: [
+      {
+        question: "જ્યારે સફેદ પ્રકાશ પ્રિઝમમાંથી પસાર થાય છે, ત્યારે તે વિવિધ રંગોમાં અલગ પડે છે. આ પ્રક્રિયાને શું કહેવાય છે?",
+        options: ["પરાવર્તન (Reflection)", "વિક્ષેપન (Dispersion)", "વિવર્તન (Diffraction)", "શોષણ (Absorption)"],
+        answerIndex: 1,
+        explanation: "વિક્ષેપન (Dispersion) એ પ્રક્રિયા છે જ્યાં સફેદ પ્રકાશ તેના ઘટક રંગોમાં વિભાજિત થાય છે કારણ કે જુદી જુદી તરંગલંબાઇ થોડી અલગ ખૂણાઓ પર વક્રીભવન પામે છે."
+      },
+      {
+        question: "પ્રિઝમમાંથી પસાર થતી વખતે કયો રંગ સૌથી વધુ વળે છે?",
+        options: ["લાલ", "પીળો", "લીલો", "જાંબલી"],
+        answerIndex: 3,
+        explanation: "જાંબલી પ્રકાશની તરંગલંબાઇ સૌથી ટૂંકી હોય છે અને તેથી પ્રિઝમમાંથી પસાર થતી વખતે તે સૌથી વધુ વળે (વક્રીભવન) છે."
+      },
+      {
+        question: "ઓપ્ટિક્સમાં, એક માધ્યમથી બીજા માધ્યમમાં પસાર થતી વખતે પ્રકાશના કિરણના વળાંકનું વર્ણન કરવા માટે કયો શબ્દ વપરાય છે?",
+        options: ["વક્રીભવન (Refraction)", "પરાવર્તન (Reflection)", "વિખેરી નાખવું (Scattering)", "દખલગીરી (Interference)"],
+        answerIndex: 0,
+        explanation: "વક્રીભવન (Refraction) એ પ્રકાશનું વળાંક છે જે એક માધ્યમ (જેમ કે હવા) થી બીજા માધ્યમ (જેમ કે કાચ) માં જાય ત્યારે તેની ગતિમાં ફેરફારને કારણે થાય છે."
+      }
+    ]
+  },
   unknown: {
     en: [],
     hi: [],
@@ -266,6 +329,7 @@ const quizDatabase: Record<PageType, Record<Language, QuizQuestion[]>> = {
 };
 
 export const ARQuiz: React.FC<ARQuizProps> = ({ pageType, language, onSpeak, onClose }) => {
+  const { incrementQuizzes } = useAuth();
   const questions = quizDatabase[pageType]?.[language] || [];
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [currentIdx, setCurrentIdx] = useState(0);
@@ -413,7 +477,7 @@ export const ARQuiz: React.FC<ARQuizProps> = ({ pageType, language, onSpeak, onC
       const failReplies = {
         en: `Oops! That's incorrect. ${currentQuestion.explanation}`,
         hi: `ओह! यह गलत है। ${currentQuestion.explanation}`,
-        gu: `અરેરે! આ ખોટું છે. ${currentQuestion.explanation}`
+        gu: `અરેરે! આ ખોટું છે। ${currentQuestion.explanation}`
       };
       onSpeak(failReplies[language]);
     }
@@ -427,6 +491,7 @@ export const ARQuiz: React.FC<ARQuizProps> = ({ pageType, language, onSpeak, onC
       setCurrentIdx(prev => prev + 1);
     } else {
       setQuizFinished(true);
+      incrementQuizzes();
     }
   };
 
@@ -444,202 +509,244 @@ export const ARQuiz: React.FC<ARQuizProps> = ({ pageType, language, onSpeak, onC
 
   return (
     <div style={{ position: 'relative', width: '100%', zIndex: 90 }}>
-      {/* Dynamic Celebration Canvas overlay */}
+      {/* Confetti Canvas */}
       {quizFinished && score === questions.length && (
         <canvas ref={canvasRef} className="confetti-canvas" />
       )}
 
       <div className="glass-card float-panel" style={{
-        padding: '24px',
-        border: '1px solid rgba(139, 92, 246, 0.25)',
-        position: 'relative'
+        padding: '22px',
+        border: '1px solid rgba(99,102,241,0.22)',
+        background: 'linear-gradient(135deg, rgba(7,14,28,0.95) 0%, rgba(99,102,241,0.06) 100%)',
+        position: 'relative',
+        maxHeight: '80vh',
+        overflowY: 'auto',
       }}>
-        {/* Header Area */}
+
+        {/* ── HEADER ── */}
         <div style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
-          paddingBottom: '12px',
-          marginBottom: '16px'
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+          marginBottom: '16px', paddingBottom: '14px',
+          borderBottom: '1px solid rgba(255,255,255,0.08)',
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Award style={{ color: 'var(--accent)' }} size={22} />
-            <h3 style={{ fontSize: '18px', fontFamily: 'var(--font-heading)', color: '#fff' }}>
-              Pop Quiz: Test Your Knowledge!
-            </h3>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div style={{
+              width: '36px', height: '36px', borderRadius: '11px',
+              background: 'linear-gradient(135deg, rgba(245,158,11,0.2) 0%, rgba(245,158,11,0.1) 100%)',
+              border: '1px solid rgba(245,158,11,0.3)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+              <Award style={{ color: 'var(--gold)' }} size={18} />
+            </div>
+            <div>
+              <h3 style={{ fontSize: '16px', fontFamily: 'var(--font-heading)', fontWeight: '800', color: '#fff', lineHeight: 1.1 }}>
+                Knowledge Quiz
+              </h3>
+              <p style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: '500', marginTop: '2px' }}>
+                Test what you've learned
+              </p>
+            </div>
           </div>
-          <span style={{
-            fontSize: '12px',
-            background: 'rgba(255,255,255,0.06)',
-            padding: '4px 10px',
-            borderRadius: '50px',
-            color: 'var(--text-secondary)',
-            fontWeight: '600'
-          }}>
-            {!quizFinished ? `Q: ${currentIdx + 1}/${questions.length}` : 'Completed'}
-          </span>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            {/* Score badge */}
+            {!quizFinished && (
+              <div style={{
+                fontSize: '11px', fontWeight: '800',
+                padding: '4px 12px', borderRadius: '999px',
+                background: 'rgba(245,158,11,0.10)',
+                color: 'var(--gold)', border: '1px solid rgba(245,158,11,0.25)',
+              }}>
+                {score}/{questions.length} ✓
+              </div>
+            )}
+            <div style={{
+              fontSize: '11px', fontWeight: '700',
+              padding: '4px 12px', borderRadius: '999px',
+              background: 'rgba(255,255,255,0.05)',
+              color: 'var(--text-secondary)',
+              border: '1px solid rgba(255,255,255,0.08)',
+            }}>
+              {!quizFinished ? `${currentIdx + 1} / ${questions.length}` : '✓ Done'}
+            </div>
+          </div>
         </div>
 
-        {/* Finished Screen */}
+        {/* ── PROGRESS BAR ── */}
+        {!quizFinished && (
+          <div className="progress-track" style={{ marginBottom: '18px' }}>
+            <div className="progress-fill" style={{
+              width: `${((currentIdx + (isAnswered ? 1 : 0)) / questions.length) * 100}%`,
+              background: 'linear-gradient(90deg, var(--indigo), var(--saffron))',
+            }} />
+          </div>
+        )}
+
+        {/* ── FINISHED SCREEN ── */}
         {quizFinished ? (
-          <div style={{ textAlign: 'center', padding: '16px 0' }}>
+          <div style={{ textAlign: 'center', padding: '12px 0 8px' }}>
             <div style={{
-              width: '80px',
-              height: '80px',
-              borderRadius: '50%',
-              background: score === questions.length ? 'rgba(16, 185, 129, 0.15)' : 'rgba(245, 158, 11, 0.15)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              margin: '0 auto 16px auto',
-              color: score === questions.length ? 'var(--success)' : 'var(--accent)',
-              border: score === questions.length ? '2px solid var(--success)' : '2px solid var(--accent)'
+              fontSize: score === questions.length ? '64px' : '52px',
+              marginBottom: '12px',
+              animation: 'scaleIn 0.5s cubic-bezier(0.4,0,0.2,1)',
             }}>
-              <Award size={40} />
+              {score === questions.length ? '🏆' : score >= questions.length / 2 ? '🎉' : '💪'}
             </div>
 
-            <h4 style={{ fontSize: '22px', fontFamily: 'var(--font-heading)', color: '#fff', marginBottom: '8px' }}>
-              {score === questions.length ? '🌟 Perfect Score! 🌟' : '🎉 Nice Effort! 🎉'}
+            <h4 style={{
+              fontSize: '22px', fontFamily: 'var(--font-heading)', fontWeight: '900',
+              marginBottom: '6px',
+              background: score === questions.length
+                ? 'linear-gradient(135deg, #fde68a, #f59e0b)'
+                : 'linear-gradient(135deg, #fff, #cbd5e1)',
+              WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text',
+            }}>
+              {score === questions.length ? 'Perfect Score! 🌟' : score >= questions.length / 2 ? 'Great Effort!' : 'Keep Studying!'}
             </h4>
-            <p style={{ color: 'var(--text-secondary)', fontSize: '14px', marginBottom: '24px', lineHeight: '1.4' }}>
-              You got <strong style={{ color: '#fff', fontSize: '18px' }}>{score}</strong> out of {questions.length} questions correct. 
-              {score === questions.length ? ' You unlocked the golden genius badge!' : ' Keep learning and try again to get a perfect score!'}
+
+            <p style={{ color: 'var(--text-secondary)', fontSize: '14px', marginBottom: '8px', lineHeight: 1.5 }}>
+              You scored{' '}
+              <strong style={{
+                color: score === questions.length ? 'var(--gold)' : '#fff',
+                fontSize: '20px',
+              }}>
+                {score}
+              </strong>
+              {' '}out of <strong style={{ color: '#fff' }}>{questions.length}</strong>
             </p>
 
-            <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
-              <button onClick={handleReset} className="glass-btn" style={{ padding: '8px 18px', fontSize: '13px' }}>
-                <RotateCcw size={14} /> Retry Quiz
+            {/* XP reward */}
+            <div style={{
+              display: 'inline-flex', alignItems: 'center', gap: '6px',
+              padding: '6px 16px', borderRadius: '999px',
+              background: 'rgba(255,107,43,0.12)',
+              border: '1px solid rgba(255,107,43,0.25)',
+              color: 'var(--saffron)', fontSize: '13px', fontWeight: '700',
+              marginBottom: '24px',
+            }}>
+              ⚡ +{score * 15} XP earned!
+            </div>
+
+            <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
+              <button onClick={handleReset} className="glass-btn ghost" style={{ padding: '9px 20px' }}>
+                <RotateCcw size={14} /> Retry
               </button>
-              <button onClick={onClose} className="glass-btn primary" style={{ padding: '8px 18px', fontSize: '13px' }}>
-                Back to Scene
+              <button onClick={onClose} className="glass-btn primary" style={{ padding: '9px 22px' }}>
+                Back to Lesson
               </button>
             </div>
           </div>
         ) : (
-          /* Active Quiz Card */
+          /* ── ACTIVE QUIZ ── */
           <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px', marginBottom: '16px' }}>
-              <p style={{
-                fontSize: '15px',
-                fontWeight: '600',
-                color: '#fff',
-                lineHeight: '1.4',
+            {/* Question */}
+            <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-start', marginBottom: '18px' }}>
+              <div style={{
+                minWidth: '28px', height: '28px', borderRadius: '9px',
+                background: 'rgba(99,102,241,0.15)',
+                border: '1px solid rgba(99,102,241,0.3)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                color: 'var(--indigo-light)', fontSize: '13px', fontWeight: '800',
+                flexShrink: 0, marginTop: '2px',
               }}>
+                {currentIdx + 1}
+              </div>
+              <p style={{ fontSize: '15px', fontWeight: '600', color: '#fff', lineHeight: '1.55', flex: 1 }}>
                 {currentQuestion.question}
               </p>
               <button
                 onClick={playAudioQuestion}
-                className="glass-btn"
-                style={{ width: '34px', height: '34px', padding: 0, flexShrink: 0, borderRadius: '50%' }}
+                className="glass-btn ghost"
+                style={{ width: '32px', height: '32px', padding: 0, borderRadius: '50%', flexShrink: 0 }}
                 title="Listen to question"
               >
-                <Volume2 size={14} />
+                <Volume2 size={13} />
               </button>
             </div>
 
-            {/* Answer Options Grid */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '20px' }}>
+            {/* Options */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '16px' }}>
               {currentQuestion.options.map((opt, idx) => {
-                let btnStyle: React.CSSProperties = {
-                  width: '100%',
-                  padding: '12px 16px',
-                  borderRadius: '14px',
-                  border: '1px solid rgba(255, 255, 255, 0.08)',
-                  background: 'rgba(255, 255, 255, 0.02)',
-                  color: 'var(--text-primary)',
-                  fontFamily: 'var(--font-body)',
-                  textAlign: 'left',
-                  fontSize: '14px',
-                  fontWeight: '500',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  transition: 'all 0.2s ease',
-                };
-
-                let suffixIcon = null;
-
-                if (isAnswered) {
-                  if (idx === currentQuestion.answerIndex) {
-                    // Correct answer highlights green
-                    btnStyle.background = 'rgba(16, 185, 129, 0.15)';
-                    btnStyle.borderColor = 'var(--success)';
-                    btnStyle.boxShadow = '0 0 10px var(--success-glow)';
-                    btnStyle.color = '#fff';
-                    btnStyle.fontWeight = '700';
-                    suffixIcon = <CheckCircle2 size={16} style={{ color: 'var(--success)' }} />;
-                  } else if (selectedOpt === idx) {
-                    // Selected wrong answer highlights red
-                    btnStyle.background = 'rgba(239, 68, 68, 0.15)';
-                    btnStyle.borderColor = 'var(--danger)';
-                    btnStyle.boxShadow = '0 0 10px var(--danger-glow)';
-                    btnStyle.color = '#fff';
-                    btnStyle.animation = 'wiggle 0.3s ease'; // Trigger custom shake
-                    suffixIcon = <XCircle size={16} style={{ color: 'var(--danger)' }} />;
-                  } else {
-                    btnStyle.opacity = 0.5;
-                  }
-                }
+                const isCorrect  = isAnswered && idx === currentQuestion.answerIndex;
+                const isWrong    = isAnswered && selectedOpt === idx && idx !== currentQuestion.answerIndex;
+                const isDimmed   = isAnswered && !isCorrect && !isWrong;
 
                 return (
                   <button
                     key={idx}
                     disabled={isAnswered}
                     onClick={() => handleOptionClick(idx)}
-                    style={btnStyle}
-                    onMouseEnter={(e) => {
+                    style={{
+                      width: '100%', padding: '11px 16px',
+                      borderRadius: '12px',
+                      border: isCorrect
+                        ? '1px solid var(--emerald)'
+                        : isWrong
+                        ? '1px solid var(--rose)'
+                        : '1px solid rgba(255,255,255,0.08)',
+                      background: isCorrect
+                        ? 'rgba(16,185,129,0.12)'
+                        : isWrong
+                        ? 'rgba(244,63,94,0.12)'
+                        : 'rgba(255,255,255,0.03)',
+                      color: isCorrect ? '#fff' : isWrong ? '#fff' : 'var(--text-primary)',
+                      fontFamily: 'var(--font-body)',
+                      textAlign: 'left', fontSize: '14px', fontWeight: isCorrect ? '700' : '500',
+                      cursor: isAnswered ? 'default' : 'pointer',
+                      display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                      transition: 'all 0.2s ease',
+                      opacity: isDimmed ? 0.45 : 1,
+                      boxShadow: isCorrect
+                        ? '0 0 14px rgba(16,185,129,0.25)'
+                        : isWrong
+                        ? '0 0 14px rgba(244,63,94,0.2)'
+                        : 'none',
+                      animation: isWrong ? 'wiggle 0.35s ease' : 'none',
+                    }}
+                    onMouseEnter={e => {
                       if (!isAnswered) {
-                        e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)';
-                        e.currentTarget.style.borderColor = 'var(--primary)';
+                        e.currentTarget.style.background = 'rgba(99,102,241,0.12)';
+                        e.currentTarget.style.borderColor = 'rgba(99,102,241,0.4)';
                       }
                     }}
-                    onMouseLeave={(e) => {
+                    onMouseLeave={e => {
                       if (!isAnswered) {
-                        e.currentTarget.style.background = 'rgba(255, 255, 255, 0.02)';
-                        e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.08)';
+                        e.currentTarget.style.background = 'rgba(255,255,255,0.03)';
+                        e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)';
                       }
                     }}
                   >
                     <span>{opt}</span>
-                    {suffixIcon}
+                    {isCorrect && <CheckCircle2 size={16} style={{ color: 'var(--emerald)', flexShrink: 0 }} />}
+                    {isWrong   && <XCircle size={16} style={{ color: 'var(--rose)', flexShrink: 0 }} />}
                   </button>
                 );
               })}
             </div>
 
-            {/* Bottom Actions */}
+            {/* Explanation */}
             {isAnswered && (
               <div style={{
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '12px',
                 background: 'rgba(255,255,255,0.03)',
-                padding: '14px',
-                borderRadius: '16px',
-                border: '1px solid rgba(255,255,255,0.05)',
-                animation: 'fadeIn 0.3s ease'
+                border: '1px solid rgba(255,255,255,0.06)',
+                borderRadius: '14px', padding: '14px 16px',
+                animation: 'fadeInUp 0.35s cubic-bezier(0.4,0,0.2,1)',
               }}>
-                <div style={{ fontSize: '13px', lineHeight: '1.45', color: 'var(--text-secondary)' }}>
-                  <strong style={{ color: '#fff', display: 'block', marginBottom: '4px' }}>
-                    💡 Explanation:
-                  </strong>
+                <p style={{ fontSize: '12px', fontWeight: '700', color: 'var(--gold)', marginBottom: '5px' }}>
+                  💡 Explanation
+                </p>
+                <p style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: '1.55' }}>
                   {currentQuestion.explanation}
-                </div>
+                </p>
                 <button
                   onClick={handleNext}
                   className="glass-btn primary"
-                  style={{
-                    alignSelf: 'flex-end',
-                    padding: '8px 18px',
-                    fontSize: '13px',
-                    borderRadius: '50px'
-                  }}
+                  style={{ marginTop: '12px', float: 'right', padding: '8px 20px', borderRadius: '999px', fontSize: '13px' }}
                 >
-                  {currentIdx + 1 === questions.length ? 'Finish Quiz' : 'Next Question'}
-                  <ArrowRight size={14} />
+                  {currentIdx + 1 === questions.length ? 'Finish Quiz 🏆' : 'Next Question'}
+                  <ArrowRight size={13} />
                 </button>
+                <div style={{ clear: 'both' }} />
               </div>
             )}
           </div>

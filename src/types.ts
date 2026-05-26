@@ -1,6 +1,6 @@
 export type Language = 'en' | 'hi' | 'gu';
 
-export type PageType = 'heart' | 'water_cycle' | 'math' | 'history' | 'unknown';
+export type PageType = 'heart' | 'water_cycle' | 'math' | 'history' | 'physics' | 'chemistry' | 'math_3d' | 'unknown';
 
 export interface QuizQuestion {
   question: string;
@@ -20,6 +20,7 @@ export interface ScanResult {
   details: string;
   mathEquation?: string | null;
   battleName?: string | null;
+  aiExplanation?: string | null; // Real AI-generated explanation from Gemini/Claude
 }
 
 export interface PartExplanation {

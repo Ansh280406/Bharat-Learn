@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import type { Language } from '../types';
+import type { Language } from '../../types';
 import { Volume2, ChevronRight, ChevronLeft, Scale } from 'lucide-react';
 
 interface MathOverlayProps {

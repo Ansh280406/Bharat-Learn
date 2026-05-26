@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import type { Language, PartExplanation } from '../types';
+import type { Language, PartExplanation } from '../../types';
 import { Volume2 } from 'lucide-react';
 
 interface WaterCycleOverlayProps {
