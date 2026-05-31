@@ -54,6 +54,18 @@
   --primary:        var(--saffron);
   --primary-glow:   var(--saffron-glow);
 
+  --secondary:      var(--sky);
+  --secondary-glow: var(--sky-glow);
+
+  --accent:         var(--gold);
+  --accent-glow:    var(--gold-glow);
+
+  --success:        var(--emerald);
+  --success-glow:   var(--emerald-glow);
+
+  --danger:         var(--rose);
+  --danger-glow:    var(--rose-glow);
+
   /* Text */
   --text-primary:   #f0f4ff;
   --text-secondary: #8b99b5;

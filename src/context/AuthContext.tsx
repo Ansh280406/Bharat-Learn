@@ -29,9 +29,6 @@ interface AuthContextType {
   addCredits: (amount: number) => void;
   incrementLessons: () => void;
   incrementQuizzes: () => void;
-  isBroadcasting: boolean;
-  broadcastCode: string | null;
-  toggleBroadcast: () => void;
 }
 
 const DEMO_USERS: Record<string, { password: string; profile: UserProfile }> = {
@@ -47,33 +44,34 @@ const DEMO_USERS: Record<string, { password: string; profile: UserProfile }> = {
       school: 'Delhi Public School, Dwarka',
       joinedDate: 'Jan 2026',
       credits: 50,
-      xp: 240,
-      streak: 3,
-      lessonsCompleted: 7,
-      quizzesPassed: 12,
-      scansUsed: 18,
+      xp: 0,
+      streak: 0,
+      lessonsCompleted: 0,
+      quizzesPassed: 0,
+      scansUsed: 0,
       isTeacher: true,
     },
   },
 };
 
-const STORAGE_KEY = 'bl_session';
 const AuthContext = createContext<AuthContextType | null>(null);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<UserProfile | null>(() => {
     try {
-      const saved = localStorage.getItem(STORAGE_KEY);
+      const saved = localStorage.getItem('bharat_learn_user');
       return saved ? JSON.parse(saved) : null;
-    } catch { return null; }
+    } catch {
+      return null;
+    }
   });
 
-  const [isBroadcasting, setIsBroadcasting] = useState(false);
-  const [broadcastCode, setBroadcastCode] = useState<string | null>(null);
-
   useEffect(() => {
-    if (user) localStorage.setItem(STORAGE_KEY, JSON.stringify(user));
-    else localStorage.removeItem(STORAGE_KEY);
+    if (user) {
+      localStorage.setItem('bharat_learn_user', JSON.stringify(user));
+    } else {
+      localStorage.removeItem('bharat_learn_user');
+    }
   }, [user]);
 
   const login = (username: string, password: string) => {
@@ -108,21 +106,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const incrementQuizzes = () =>
     setUser(u => u ? { ...u, quizzesPassed: u.quizzesPassed + 1, xp: u.xp + 25 } : u);
 
-  const toggleBroadcast = () => {
-    if (isBroadcasting) {
-      setIsBroadcasting(false);
-      setBroadcastCode(null);
-    } else {
-      setIsBroadcasting(true);
-      setBroadcastCode(`CLASS-${Math.floor(1000 + Math.random() * 9000)}`);
-    }
-  };
-
   return (
     <AuthContext.Provider value={{
       user, isAuthenticated: !!user, login, logout, updateProfile,
       updateXP, useCredit, addCredits, incrementLessons, incrementQuizzes,
-      isBroadcasting, broadcastCode, toggleBroadcast
     }}>
       {children}
     </AuthContext.Provider>

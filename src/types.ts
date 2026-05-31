@@ -21,6 +21,9 @@ export interface ScanResult {
   mathEquation?: string | null;
   battleName?: string | null;
   aiExplanation?: string | null; // Real AI-generated explanation from Gemini/Claude
+  isLibrary?: boolean; // True if launched from NCERT Library / Sandbox
+  hologramImagePrompt?: string | null;
+  hologramLabels?: any[] | null;
 }
 
 export interface PartExplanation {

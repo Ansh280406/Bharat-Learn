@@ -5,6 +5,8 @@ import { WaterCycleOverlay } from '../overlays/WaterCycleOverlay';
 import { MathOverlay } from '../overlays/MathOverlay';
 import { BattleMapOverlay } from '../overlays/BattleMapOverlay';
 import { PhysicsOverlay } from '../overlays/PhysicsOverlay';
+import { ChemistryOverlay } from '../overlays/ChemistryOverlay';
+import { Math3DOverlay } from '../overlays/Math3DOverlay';
 import { DynamicAIOverlay } from '../overlays/DynamicAIOverlay';
 import { ARQuiz } from './ARQuiz';
 import {
@@ -178,12 +180,28 @@ export const ARContainer: React.FC<ARContainerProps> = ({
       <div className="interactive-container" style={{ position: 'relative' }}>
         {!showQuiz && (
           <>
-            {pageType === 'heart'       && <HeartOverlay      language={language} onSpeak={onSpeak} />}
-            {pageType === 'water_cycle' && <WaterCycleOverlay language={language} onSpeak={onSpeak} />}
-            {pageType === 'math'        && <MathOverlay       language={language} onSpeak={onSpeak} />}
-            {pageType === 'history'     && <BattleMapOverlay  language={language} onSpeak={onSpeak} battleName={extractedInfo?.battleName} />}
-            {pageType === 'physics'     && <PhysicsOverlay    language={language} onSpeak={onSpeak} />}
-            {pageType === 'unknown'     && <DynamicAIOverlay  language={language} onSpeak={onSpeak} onReset={onReset} aiExplanation={aiExplanation} title={extractedInfo?.title} />}
+            {extractedInfo?.isLibrary ? (
+              <>
+                {pageType === 'heart'       && <HeartOverlay      language={language} onSpeak={onSpeak} />}
+                {pageType === 'water_cycle' && <WaterCycleOverlay language={language} onSpeak={onSpeak} />}
+                {pageType === 'math'        && <MathOverlay       language={language} onSpeak={onSpeak} />}
+                {pageType === 'math_3d'     && <Math3DOverlay     language={language} onSpeak={onSpeak} />}
+                {pageType === 'history'     && <BattleMapOverlay  language={language} onSpeak={onSpeak} battleName={extractedInfo?.battleName} />}
+                {pageType === 'physics'     && <PhysicsOverlay    language={language} onSpeak={onSpeak} />}
+                {pageType === 'chemistry'   && <ChemistryOverlay  language={language} onSpeak={onSpeak} />}
+                {pageType === 'unknown'     && <DynamicAIOverlay  language={language} onSpeak={onSpeak} onReset={onReset} aiExplanation={aiExplanation} title={extractedInfo?.title} imagePrompt={extractedInfo?.hologramImagePrompt} labels={extractedInfo?.hologramLabels} />}
+              </>
+            ) : (
+              <DynamicAIOverlay  
+                language={language} 
+                onSpeak={onSpeak} 
+                onReset={onReset} 
+                aiExplanation={aiExplanation} 
+                title={extractedInfo?.title || meta.title} 
+                imagePrompt={extractedInfo?.hologramImagePrompt}
+                labels={extractedInfo?.hologramLabels}
+              />
+            )}
           </>
         )}
 

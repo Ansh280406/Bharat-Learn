@@ -1,6 +1,9 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { Camera, RefreshCw, AlertCircle, Eye, Zap, RotateCcw } from 'lucide-react';
+import { Camera, RefreshCw, AlertCircle, Eye, Zap, RotateCcw, Clock, BookOpen, ImageUp } from 'lucide-react';
+import { createWorker } from 'tesseract.js';
 import type { PageType } from '../../types';
+import { RecentScans } from './RecentScans';
+import { ARLibrary } from './ARLibrary';
 
 interface CameraFeedProps {
   onScanComplete: (pageType: PageType, confidence: number, extractedInfo: any, aiExplanation?: string) => void;
@@ -24,11 +27,14 @@ export const CameraFeed: React.FC<CameraFeedProps> = ({
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [facingMode, setFacingMode] = useState<'user' | 'environment'>('environment');
   const [scanMessage, setScanMessage] = useState('Point camera at a textbook page...');
   const [scanProgress, setScanProgress] = useState(0);
+  const [historyRefresh, setHistoryRefresh] = useState(0);
+  const [activeSection, setActiveSection] = useState<'recent' | 'library'>('recent');
 
   const startCamera = async () => {
     setCameraError(null);
@@ -51,32 +57,51 @@ export const CameraFeed: React.FC<CameraFeedProps> = ({
 
   const toggleCamera = () => setFacingMode(prev => prev === 'user' ? 'environment' : 'user');
 
-  const handleScan = async () => {
-    if (!videoRef.current || !canvasRef.current) return;
-    setIsScanning(true);
-    setScanMessage('Capturing frame...');
-    setScanProgress(10);
+  const runOCRAndClassify = async (canvas: HTMLCanvasElement) => {
+    // ── STEP 2: Run Tesseract OCR on the captured frame ─────────
+    setScanMessage('🔎 Running OCR on image...');
+    setScanProgress(30);
 
-    const canvas = canvasRef.current;
-    const video = videoRef.current;
-    canvas.width = video.videoWidth || 640;
-    canvas.height = video.videoHeight || 480;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    const base64Image = canvas.toDataURL('image/jpeg', 0.8);
+    let ocrText = '';
+    try {
+      const worker = await createWorker('eng', 1, {
+        logger: m => {
+          if (m.status === 'recognizing text') {
+            setScanProgress(30 + Math.floor((m.progress || 0) * 30)); // 30→60
+          }
+        }
+      });
+      const { data } = await worker.recognize(canvas);
+      ocrText = data.text?.trim() || '';
+      await worker.terminate();
+      console.log('📝 OCR extracted text:', ocrText.substring(0, 200));
+    } catch (ocrErr) {
+      console.warn('OCR failed:', ocrErr);
+    }
 
-    setScanMessage('Analyzing with Gemini AI...');
-    setScanProgress(40);
+    if (!ocrText || ocrText.length < 5) {
+      setScanMessage('⚠️ Could not read text — try better lighting or a clearer page.');
+      setScanProgress(0);
+      setTimeout(() => {
+        setIsScanning(false);
+        setScanMessage('Point camera at a textbook page...');
+      }, 2500);
+      return;
+    }
+
+    // ── STEP 3: Send OCR text to AI, get fresh AR model ─────────
+    setScanMessage('🤖 Analysing with Gemini AI...');
+    setScanProgress(70);
 
     try {
-      const response = await fetch('/api/classify', {
+      const response = await fetch('/api/classify-text', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ image: base64Image })
+        body: JSON.stringify({ text: ocrText })
       });
       if (!response.ok) throw new Error('API request failed');
       const data = await response.json();
+
       if (data.status === 'success') {
         setScanProgress(100);
         setScanMessage(`✓ Detected: ${data.pageType.toUpperCase()}`);
@@ -84,9 +109,13 @@ export const CameraFeed: React.FC<CameraFeedProps> = ({
           onScanComplete(data.pageType, data.confidence, data.extractedInfo, data.aiExplanation);
           setIsScanning(false);
           setScanProgress(0);
+          setHistoryRefresh(n => n + 1);
         }, 700);
-      } else throw new Error(data.error || 'Classification failed');
-    } catch {
+      } else {
+        throw new Error(data.error || 'Classification failed');
+      }
+    } catch (apiErr) {
+      console.warn('API failed, falling back to simulation:', apiErr);
       setScanMessage('Server offline — running local simulation...');
       setScanProgress(60);
       setTimeout(() => {
@@ -96,20 +125,100 @@ export const CameraFeed: React.FC<CameraFeedProps> = ({
     }
   };
 
+  const handleScan = async () => {
+    if (!videoRef.current || !canvasRef.current) return;
+    setIsScanning(true);
+
+    // ── STEP 1: Capture frame from camera ──────────────────────
+    setScanMessage('📸 Capturing frame...');
+    setScanProgress(10);
+
+    const canvas = canvasRef.current;
+    const video = videoRef.current;
+    canvas.width = video.videoWidth || 640;
+    canvas.height = video.videoHeight || 480;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) { setIsScanning(false); return; }
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+    await runOCRAndClassify(canvas);
+  };
+
+  const processImageFile = (file: File) => {
+    if (!canvasRef.current || isScanning) return;
+
+    setIsScanning(true);
+    setScanMessage('📸 Loading pasted/uploaded image...');
+    setScanProgress(10);
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = async () => {
+        const canvas = canvasRef.current!;
+        canvas.width = img.width;
+        canvas.height = img.height;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, 0, 0);
+          await runOCRAndClassify(canvas);
+        } else {
+          setIsScanning(false);
+        }
+      };
+      img.src = event.target?.result as string;
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) processImageFile(file);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  useEffect(() => {
+    const handlePaste = (e: ClipboardEvent) => {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].type.indexOf('image') !== -1) {
+          const file = items[i].getAsFile();
+          if (file) {
+            processImageFile(file);
+            break;
+          }
+        }
+      }
+    };
+    window.addEventListener('paste', handlePaste);
+    return () => window.removeEventListener('paste', handlePaste);
+  }, [isScanning]); // Re-bind when isScanning changes so the handler has fresh state
+
+  // Relaunch an AR model from recent history or library
+  const handleRelaunch = (pageType: PageType, title: string, explanation: string, isLibrary: boolean = false) => {
+    onScanComplete(
+      pageType,
+      1.0,
+      { title, details: explanation, isLibrary },
+      explanation
+    );
+  };
+
   const simulateMockScan = (type: PageType) => {
     setIsScanning(true);
     setScanProgress(70);
     setScanMessage(`Simulating ${type} scan...`);
 
     const mockData: Record<PageType, { confidence: number; info: any }> = {
-      heart:       { confidence: 0.98, info: { title: 'Human Heart Biology', details: 'Interactive 3D model of the aorta, ventricles and blood vessels.' } },
-      water_cycle: { confidence: 0.95, info: { title: 'Water Cycle Geography', details: 'Animated cloud formation, rain cycle and river flowchart.' } },
-      math:        { confidence: 0.92, info: { title: 'Math Equation', details: 'Solve the equation step-by-step.', mathEquation: '2x + 4 = 10' } },
-      math_3d:     { confidence: 0.94, info: { title: '3D Geometry', details: 'Visualize planes and vectors in 3D space.' } },
-      history:     { confidence: 0.96, info: { title: 'Battle of Panipat (1526)', details: 'Babur vs Ibrahim Lodi historical map.', battleName: 'Battle of Panipat (1526)' } },
-      physics:     { confidence: 0.94, info: { title: 'Optics & Prisms', details: 'Practical interactive light refraction lab.' } },
-      chemistry:   { confidence: 0.97, info: { title: 'Organic Mechanisms', details: 'Visualize nucleophilic attacks in 3D.' } },
-      unknown:     { confidence: 0.50, info: { title: 'Unknown Page', details: 'Please point at a valid textbook diagram.' } },
+      heart:       { confidence: 1.0, info: { title: 'Human Heart Biology', details: 'Interactive 3D model of the aorta, ventricles and blood vessels.', isLibrary: true } },
+      water_cycle: { confidence: 1.0, info: { title: 'Water Cycle Geography', details: 'Animated cloud formation, rain cycle and river flowchart.', isLibrary: true } },
+      math:        { confidence: 1.0, info: { title: 'Math Equation', details: 'Solve the equation step-by-step.', mathEquation: '2x + 4 = 10', isLibrary: true } },
+      math_3d:     { confidence: 1.0, info: { title: '3D Geometry', details: 'Visualize planes and vectors in 3D space.', isLibrary: true } },
+      history:     { confidence: 1.0, info: { title: 'Battle of Panipat (1526)', details: 'Babur vs Ibrahim Lodi historical map.', battleName: 'Battle of Panipat (1526)', isLibrary: true } },
+      physics:     { confidence: 1.0, info: { title: 'Optics & Prisms', details: 'Practical interactive light refraction lab.', isLibrary: true } },
+      chemistry:   { confidence: 1.0, info: { title: 'Organic Mechanisms', details: 'Visualize nucleophilic attacks in 3D.', isLibrary: true } },
+      unknown:     { confidence: 1.0, info: { title: 'Unknown Page', details: 'Please point at a valid textbook diagram.', isLibrary: true } },
     };
 
     setTimeout(() => {
@@ -153,9 +262,27 @@ export const CameraFeed: React.FC<CameraFeedProps> = ({
             <p style={{ fontSize: '13px', color: 'var(--text-secondary)', maxWidth: '340px', marginBottom: '24px', lineHeight: '1.6' }}>
               {cameraError}
             </p>
-            <button onClick={startCamera} className="glass-btn primary" style={{ padding: '10px 24px' }}>
-              <RefreshCw size={14} /> Retry Camera
-            </button>
+            <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', justifyContent: 'center' }}>
+              <button onClick={startCamera} className="glass-btn ghost" style={{ padding: '10px 20px' }}>
+                <RefreshCw size={14} /> Retry Camera
+              </button>
+              <button onClick={() => fileInputRef.current?.click()} disabled={isScanning} className="glass-btn primary" style={{ padding: '10px 20px' }}>
+                <ImageUp size={14} /> Upload Image
+              </button>
+            </div>
+            
+            {/* Show progress if scanning from uploaded image while in error state */}
+            {isScanning && (
+              <div style={{ width: '200px', marginTop: '24px' }}>
+                <div style={{ fontSize: '11px', color: 'var(--saffron)', marginBottom: '8px', fontWeight: 'bold' }}>
+                  <span style={{ animation: 'spin-slow 1s linear infinite', display: 'inline-block', marginRight: '4px' }}>⟳</span>
+                  {scanMessage}
+                </div>
+                <div className="progress-track" style={{ height: '3px' }}>
+                  <div className="progress-fill" style={{ width: `${scanProgress}%`, transition: 'width 0.4s ease' }} />
+                </div>
+              </div>
+            )}
           </div>
         ) : (
           <>
@@ -241,7 +368,7 @@ export const CameraFeed: React.FC<CameraFeedProps> = ({
               position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 10,
               padding: '16px 20px',
               background: 'linear-gradient(to top, rgba(2,5,9,0.9) 0%, transparent 100%)',
-              display: 'flex', justifyContent: 'center',
+              display: 'flex', justifyContent: 'center', gap: '12px',
             }}>
               <button
                 id="btn-scan"
@@ -249,27 +376,53 @@ export const CameraFeed: React.FC<CameraFeedProps> = ({
                 disabled={isScanning}
                 className="glass-btn primary"
                 style={{
-                  padding: '12px 36px', borderRadius: '999px',
+                  padding: '12px 24px', borderRadius: '999px',
                   fontSize: '15px', fontWeight: '800',
                   boxShadow: isScanning ? 'none' : '0 0 24px var(--saffron-glow), 0 4px 16px rgba(0,0,0,0.4)',
                   opacity: isScanning ? 0.7 : 1,
                   letterSpacing: '0.01em',
                   transition: 'all 0.3s ease',
+                  flex: 1,
+                  maxWidth: '220px',
                 }}
               >
                 {isScanning ? (
                   <><span style={{ animation: 'spin-slow 1s linear infinite', display: 'inline-block' }}>⟳</span> Scanning...</>
                 ) : (
-                  <><Camera size={17} /> Scan Textbook</>
+                  <><Camera size={17} /> Camera Scan</>
                 )}
+              </button>
+
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isScanning}
+                className="glass-btn ghost"
+                style={{
+                  padding: '12px 24px', borderRadius: '999px',
+                  fontSize: '15px', fontWeight: '800',
+                  background: 'rgba(255,255,255,0.1)',
+                  border: '1px solid rgba(255,255,255,0.2)',
+                  color: 'white',
+                  opacity: isScanning ? 0.7 : 1,
+                  transition: 'all 0.3s ease',
+                }}
+              >
+                <ImageUp size={17} /> Upload
               </button>
             </div>
           </>
         )}
       </div>
 
-      {/* Hidden canvas */}
+      {/* Hidden elements */}
       <canvas ref={canvasRef} style={{ display: 'none' }} />
+      <input 
+        type="file" 
+        ref={fileInputRef} 
+        accept="image/*" 
+        style={{ display: 'none' }} 
+        onChange={handleImageUpload} 
+      />
 
       {/* ── SANDBOX SIMULATOR ── */}
       <div className="glass-card" style={{
@@ -342,6 +495,50 @@ export const CameraFeed: React.FC<CameraFeedProps> = ({
           All features work in sandbox mode — quizzes, voice & AR
         </p>
       </div>
+
+      {/* ── RECENT SCANS + LIBRARY TABS ── */}
+      <div className="glass-card" style={{ padding: '20px 22px', border: '1px solid rgba(255,255,255,0.06)', background: 'rgba(7,14,28,0.75)' }}>
+
+        {/* Tab switcher */}
+        <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
+          <button
+            onClick={() => setActiveSection('recent')}
+            style={{
+              flex: 1, padding: '8px', borderRadius: '10px', cursor: 'pointer',
+              fontSize: '12px', fontWeight: '700',
+              background: activeSection === 'recent' ? 'rgba(255,107,43,0.15)' : 'transparent',
+              border: activeSection === 'recent' ? '1px solid rgba(255,107,43,0.35)' : '1px solid rgba(255,255,255,0.07)',
+              color: activeSection === 'recent' ? 'var(--saffron)' : 'var(--text-muted)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+              transition: 'all 0.2s ease',
+            }}
+          >
+            <Clock size={13} /> Recent Scans
+          </button>
+          <button
+            onClick={() => setActiveSection('library')}
+            style={{
+              flex: 1, padding: '8px', borderRadius: '10px', cursor: 'pointer',
+              fontSize: '12px', fontWeight: '700',
+              background: activeSection === 'library' ? 'rgba(99,102,241,0.15)' : 'transparent',
+              border: activeSection === 'library' ? '1px solid rgba(99,102,241,0.35)' : '1px solid rgba(255,255,255,0.07)',
+              color: activeSection === 'library' ? 'var(--indigo-light)' : 'var(--text-muted)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+              transition: 'all 0.2s ease',
+            }}
+          >
+            <BookOpen size={13} /> NCERT Library
+          </button>
+        </div>
+
+        {/* Content */}
+        {activeSection === 'recent' ? (
+          <RecentScans onRelaunch={handleRelaunch} refreshSignal={historyRefresh} />
+        ) : (
+          <ARLibrary onLaunch={handleRelaunch} />
+        )}
+      </div>
+
     </div>
   );
 };

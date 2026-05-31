@@ -44,12 +44,6 @@ function App() {
   if (!isAuthenticated || !user) return <Login />;
 
   const handleScanComplete = (pageType: PageType, confidence: number, extractedInfo: any, aiExplanation?: string) => {
-    const hasCredit = useCredit();
-    if (!hasCredit) {
-      alert('No credits left! Visit your Profile to add more credits.');
-      setIsScanning(false);
-      return;
-    }
     setScanResult({
       pageType,
       confidence,
@@ -58,11 +52,12 @@ function App() {
       mathEquation: extractedInfo?.mathEquation,
       battleName: extractedInfo?.battleName,
       aiExplanation: aiExplanation || null,
+      isLibrary: extractedInfo?.isLibrary,
+      hologramImagePrompt: extractedInfo?.hologramImagePrompt || null,
+      hologramLabels: extractedInfo?.hologramLabels || null,
     });
     updateXP(25);
     setSessionsToday(prev => prev + 1);
-    const textToSpeak = aiExplanation || `Identified ${extractedInfo?.title || pageType}. Explore Bharat-Learn!`;
-    speak(textToSpeak, language);
   };
 
   const handleSelectSubjectOffline = (subject: PageType) => {
@@ -75,10 +70,10 @@ function App() {
       mathEquation: data.mathEquation,
       battleName: data.battleName,
       aiExplanation: null,
+      isLibrary: true,
     });
     setActiveTab('scanner');
     incrementLessons();
-    speak(`Launching ${data.title} in AR mode.`, language);
   };
 
   // Also usable from bookmarks
@@ -148,7 +143,7 @@ function App() {
 
             {/* Main content */}
             <main className="anim-fade-up delay-300">
-              {scanResult ? (
+              {scanResult && (activeTab === 'scanner' || activeTab === 'index') ? (
                 <ARContainer
                   pageType={scanResult.pageType}
                   confidence={scanResult.confidence}

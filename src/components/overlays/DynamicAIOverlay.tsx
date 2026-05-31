@@ -1,6 +1,12 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import type { Language } from '../../types';
-import { Sparkles, ScanLine, BrainCircuit, Activity, Zap } from 'lucide-react';
+import { ScanLine, Volume2, RefreshCw } from 'lucide-react';
+
+interface HologramLabel {
+  id: string;
+  name: string;
+  description: string;
+}
 
 interface DynamicAIOverlayProps {
   language: Language;
@@ -8,166 +14,282 @@ interface DynamicAIOverlayProps {
   onReset: () => void;
   aiExplanation?: string | null;
   title?: string | null;
+  imagePrompt?: string | null;
+  labels?: HologramLabel[] | null;
 }
 
-export const DynamicAIOverlay: React.FC<DynamicAIOverlayProps> = ({ 
-  language, onSpeak, onReset, aiExplanation, title 
+export const DynamicAIOverlay: React.FC<DynamicAIOverlayProps> = ({
+  language, onSpeak, onReset, aiExplanation, title, imagePrompt, labels
 }) => {
   const [analyzing, setAnalyzing] = useState(true);
-  const [activeNode, setActiveNode] = useState<string | null>(null);
+  const [imageLoaded, setImageLoaded] = useState(false);
+  const [imageError, setImageError] = useState(false);
+  const [activeLabelId, setActiveLabelId] = useState<string | null>(null);
 
-  // Fallback text if no real API explanation is provided
-  const explanation = aiExplanation || (
-    language === 'en' 
-      ? "Analysis complete. The structure appears to be an organic compound. You can explore the functional groups."
-      : language === 'hi' 
-        ? "विश्लेषण पूर्ण। संरचना एक कार्बनिक यौगिक प्रतीत होती है।"
-        : "વિશ્લેષણ પૂર્ણ. રચના કાર્બનિક સંયોજન હોવાનું જણાય છે."
-  );
+  const baseExplanation = aiExplanation || 'Analysis complete. Tap the labels to explore each part.';
+  const displayTitle = title || 'AI-Generated Hologram';
 
-  const displayTitle = title || "Dynamically Generated Model";
+  const activeLabel = useMemo(() => {
+    if (!labels || !activeLabelId) return null;
+    return labels.find(l => l.id === activeLabelId);
+  }, [labels, activeLabelId]);
 
-  // Extract keywords to generate dynamic floating nodes
-  const keywords = useMemo(() => {
-    if (!explanation) return [];
-    // Simple extraction: words longer than 5 chars, taking up to 5 unique words
-    const words = explanation.replace(/[.,!?()]/g, '').split(/\s+/);
-    const longWords = words.filter(w => w.length > 5);
-    const unique = Array.from(new Set(longWords)).slice(0, 5);
-    return unique.length > 0 ? unique : ['Concept 1', 'Concept 2', 'Concept 3'];
-  }, [explanation]);
+  const currentExplanation = activeLabel ? activeLabel.description : baseExplanation;
+  const currentTitle = activeLabel ? activeLabel.name : displayTitle;
+
+  // Use flux-schnell model for much faster image generation (~5s vs 30s)
+  const imageUrl = imagePrompt
+    ? `https://image.pollinations.ai/prompt/${encodeURIComponent(imagePrompt + ', high quality 3D render, black background, no text, no watermark')}?model=flux-schnell&seed=99&width=800&height=800&nologo=true`
+    : null;
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setAnalyzing(false);
-      onSpeak(explanation);
-    }, 2500);
+    const timer = setTimeout(() => setAnalyzing(false), 2000);
     return () => clearTimeout(timer);
-  }, [explanation, onSpeak]);
+  }, []);
+
+  // Reset image state when prompt changes
+  useEffect(() => {
+    setImageLoaded(false);
+    setImageError(false);
+  }, [imagePrompt]);
+
+  // Label orbit radius & positions
+  const ORBIT_RADIUS = 220;
 
   return (
     <div style={{
-      width: '100%', height: '350px',
+      position: 'absolute', inset: 0,
       borderRadius: '20px',
-      background: 'radial-gradient(circle at center, rgba(16, 185, 129, 0.1) 0%, rgba(2, 5, 9, 0.9) 100%)',
-      border: '1px solid rgba(16, 185, 129, 0.2)',
+      background: 'radial-gradient(ellipse at center, rgba(16,185,129,0.08) 0%, #020509 70%)',
+      border: '1px solid rgba(16,185,129,0.2)',
       display: 'flex', flexDirection: 'column',
       alignItems: 'center', justifyContent: 'center',
-      position: 'relative', overflow: 'hidden',
+      overflow: 'hidden',
     }}>
-      {/* Scanning Grid Background */}
+
+      {/* Scanning Grid */}
       <div style={{
         position: 'absolute', inset: 0,
-        backgroundImage: 'linear-gradient(var(--grid-color) 1px, transparent 1px), linear-gradient(90deg, var(--grid-color) 1px, transparent 1px)',
-        backgroundSize: '20px 20px',
-        animation: 'pan-bg 10s linear infinite',
+        backgroundImage: 'linear-gradient(rgba(16,185,129,0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(16,185,129,0.04) 1px, transparent 1px)',
+        backgroundSize: '40px 40px',
+        animation: 'pan-bg 20s linear infinite',
+        pointerEvents: 'none'
       }} />
 
       {analyzing ? (
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px', zIndex: 10 }}>
-          <div style={{ position: 'relative' }}>
+        /* ── Analyzing animation ── */
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 20, zIndex: 10 }}>
+          <div style={{ position: 'relative', width: 80, height: 80, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <div style={{
-              width: '80px', height: '80px', borderRadius: '50%',
-              border: '2px dashed rgba(16, 185, 129, 0.5)',
-              animation: 'spin 4s linear infinite',
-              position: 'absolute', top: -10, left: -10, right: -10, bottom: -10
+              position: 'absolute', inset: -12, borderRadius: '50%',
+              border: '2px dashed rgba(16,185,129,0.5)',
+              animation: 'spin 3s linear infinite'
             }} />
             <div style={{
-              width: '60px', height: '60px', borderRadius: '16px',
-              background: 'rgba(16, 185, 129, 0.15)',
+              width: 60, height: 60, borderRadius: 16,
+              background: 'rgba(16,185,129,0.15)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              boxShadow: '0 0 20px rgba(16, 185, 129, 0.4)',
-              color: 'var(--emerald)'
+              boxShadow: '0 0 20px rgba(16,185,129,0.4)', color: '#10b981'
             }}>
-              <ScanLine size={32} />
+              <ScanLine size={30} />
             </div>
           </div>
-          <h3 style={{
-            fontSize: '18px', fontFamily: 'var(--font-heading)',
-            color: 'var(--emerald-light)', letterSpacing: '0.05em',
-            animation: 'pulse 2s infinite'
-          }}>
-            Generating Live AR...
-          </h3>
+          <p style={{ color: '#6ee7b7', fontSize: 16, fontWeight: 600, letterSpacing: '0.08em', animation: 'pulse 2s infinite', margin: 0 }}>
+            Generating Live Hologram...
+          </p>
         </div>
       ) : (
+        /* ── Main hologram view ── */
         <div style={{ position: 'absolute', inset: 0, zIndex: 10 }}>
-          
-          {/* Dynamic Floating Nodes */}
-          {keywords.map((kw, i) => {
-            const angle = (i / keywords.length) * Math.PI * 2;
-            const radius = 100;
-            const x = Math.cos(angle) * radius;
-            const y = Math.sin(angle) * radius;
-            const isActive = activeNode === kw;
 
-            return (
-              <div 
-                key={kw}
-                onClick={() => { setActiveNode(kw); onSpeak(kw); }}
-                style={{
-                  position: 'absolute',
-                  top: `calc(50% + ${y}px)`,
-                  left: `calc(50% + ${x}px)`,
-                  transform: 'translate(-50%, -50%)',
-                  background: isActive ? 'var(--emerald)' : 'rgba(2,5,9,0.7)',
-                  border: `1px solid ${isActive ? 'var(--emerald)' : 'rgba(16,185,129,0.3)'}`,
-                  color: isActive ? '#fff' : 'var(--emerald-light)',
-                  padding: '6px 12px',
-                  borderRadius: '999px',
-                  fontSize: '11px',
-                  fontWeight: '700',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.05em',
-                  cursor: 'pointer',
-                  backdropFilter: 'blur(4px)',
-                  boxShadow: isActive ? '0 0 15px rgba(16,185,129,0.6)' : 'none',
-                  animation: `float ${3 + i % 2}s ease-in-out infinite`,
-                  animationDelay: `${i * 0.5}s`,
-                  transition: 'all 0.3s ease',
-                  zIndex: isActive ? 20 : 15
-                }}
-              >
-                {kw}
-              </div>
-            );
-          })}
-
-          {/* Central AI Core */}
-          <div style={{
-            position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
-            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px'
-          }}>
-            <div style={{
-              width: '64px', height: '64px', borderRadius: '50%',
-              background: 'linear-gradient(135deg, var(--emerald) 0%, #059669 100%)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              boxShadow: '0 0 30px rgba(16, 185, 129, 0.5)',
-              color: '#fff',
-              animation: 'pulse 3s ease-in-out infinite'
+          {/* Re-scan button */}
+          <div style={{ position: 'absolute', top: 14, right: 14, zIndex: 30 }}>
+            <button onClick={onReset} className="glass-btn ghost" style={{
+              borderRadius: 999, padding: '6px 14px', fontSize: 12,
+              borderColor: 'rgba(16,185,129,0.3)', color: '#6ee7b7',
+              display: 'flex', alignItems: 'center', gap: 6
             }}>
-              <BrainCircuit size={32} />
-            </div>
-            <div style={{
-              background: 'rgba(2,5,9,0.75)', padding: '6px 12px', borderRadius: '12px', 
-              border: '1px solid rgba(16,185,129,0.3)', backdropFilter: 'blur(4px)',
-              whiteSpace: 'nowrap'
-            }}>
-              <h3 style={{ fontSize: '13px', fontFamily: 'var(--font-heading)', color: '#fff', margin: 0 }}>
-                {displayTitle}
-              </h3>
-            </div>
-          </div>
-          
-          {/* Action Buttons */}
-          <div style={{ position: 'absolute', bottom: '16px', left: '16px', right: '16px', display: 'flex', justifyContent: 'center', gap: '12px' }}>
-            <button className="glass-btn primary" onClick={() => onSpeak(explanation)} style={{ borderRadius: '999px', padding: '8px 16px', fontSize: '13px' }}>
-              <Zap size={14} style={{ marginRight: '6px' }} />
-              Explain
+              <ScanLine size={12} /> Re-scan
             </button>
-            <button onClick={onReset} className="glass-btn ghost" style={{ borderRadius: '999px', padding: '8px 16px', fontSize: '13px', borderColor: 'rgba(16,185,129,0.3)' }}>
-              <ScanLine size={14} style={{ marginRight: '6px' }} />
-              Re-scan
+          </div>
+
+          {/* ── Central hologram stage ── */}
+          <div style={{
+            position: 'absolute',
+            top: '48%', left: '50%',
+            transform: 'translate(-50%, -50%)',
+            width: 500, height: 500,
+          }}>
+
+            {/* Glow ring behind image */}
+            <div style={{
+              position: 'absolute', inset: 40, borderRadius: '50%',
+              background: 'radial-gradient(circle, rgba(16,185,129,0.18) 0%, transparent 70%)',
+              filter: 'blur(20px)',
+              animation: 'pulse 4s ease-in-out infinite',
+              pointerEvents: 'none'
+            }} />
+
+            {/* Central image area - full 420×420 */}
+            <div style={{
+              position: 'absolute',
+              top: '50%', left: '50%',
+              transform: 'translate(-50%, -50%)',
+              width: 340, height: 340,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              animation: 'float 6s ease-in-out infinite',
+            }}>
+              {imageUrl && !imageError ? (
+                <>
+                  {/* Loading shimmer while Pollinations generates */}
+                  {!imageLoaded && (
+                    <div style={{
+                      position: 'absolute', inset: 0,
+                      borderRadius: '50%',
+                      background: 'conic-gradient(from 0deg, rgba(16,185,129,0.3), rgba(16,185,129,0.05), rgba(16,185,129,0.3))',
+                      animation: 'spin 2s linear infinite',
+                      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                    }}>
+                      <div style={{
+                        position: 'absolute', inset: 4, borderRadius: '50%',
+                        background: '#020509',
+                        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10
+                      }}>
+                        <RefreshCw size={32} color="#10b981" style={{ animation: 'spin 1.5s linear infinite' }} />
+                        <p style={{ color: '#6ee7b7', fontSize: 11, fontWeight: 600, margin: 0, textAlign: 'center' }}>
+                          AI generating<br/>3D hologram...
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                  <img
+                    src={imageUrl}
+                    alt={displayTitle}
+                    onLoad={() => setImageLoaded(true)}
+                    onError={() => setImageError(true)}
+                    style={{
+                      width: '100%',
+                      height: '100%',
+                      objectFit: 'contain',
+                      mixBlendMode: 'screen',
+                      opacity: imageLoaded ? 1 : 0,
+                      transition: 'opacity 0.8s ease',
+                      filter: 'drop-shadow(0 0 30px rgba(16,185,129,0.6)) drop-shadow(0 0 60px rgba(16,185,129,0.3))',
+                    }}
+                  />
+                </>
+              ) : (
+                /* Fallback when image fails */
+                <div style={{
+                  width: 160, height: 160, borderRadius: '50%',
+                  background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  boxShadow: '0 0 60px rgba(16,185,129,0.5), 0 0 120px rgba(16,185,129,0.2)',
+                  color: '#fff',
+                  fontSize: 14, fontWeight: 700, letterSpacing: '0.05em',
+                  textAlign: 'center', padding: 20, lineHeight: 1.4
+                }}>
+                  {displayTitle}
+                </div>
+              )}
+            </div>
+
+            {/* ── Orbiting labels ── */}
+            {labels && labels.map((label, i) => {
+              const angle = (i / labels.length) * Math.PI * 2 - Math.PI / 2;
+              const x = Math.cos(angle) * ORBIT_RADIUS;
+              const y = Math.sin(angle) * ORBIT_RADIUS;
+              const isActive = activeLabelId === label.id;
+
+              return (
+                <div
+                  key={label.id}
+                  onClick={() => setActiveLabelId(prev => prev === label.id ? null : label.id)}
+                  style={{
+                    position: 'absolute',
+                    top: `calc(50% + ${y}px)`,
+                    left: `calc(50% + ${x}px)`,
+                    transform: 'translate(-50%, -50%)',
+                    background: isActive ? '#10b981' : 'rgba(2,5,9,0.9)',
+                    border: `1.5px solid ${isActive ? '#10b981' : 'rgba(16,185,129,0.5)'}`,
+                    color: isActive ? '#fff' : '#6ee7b7',
+                    padding: '8px 16px',
+                    borderRadius: 999,
+                    fontSize: 12,
+                    fontWeight: 700,
+                    display: 'flex', alignItems: 'center', gap: 6,
+                    cursor: 'pointer',
+                    backdropFilter: 'blur(12px)',
+                    boxShadow: isActive
+                      ? '0 0 24px rgba(16,185,129,0.9), 0 4px 16px rgba(0,0,0,0.5)'
+                      : '0 4px 16px rgba(0,0,0,0.6)',
+                    transition: 'all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)',
+                    zIndex: isActive ? 25 : 20,
+                    whiteSpace: 'nowrap',
+                    userSelect: 'none',
+                    scale: isActive ? '1.1' : '1',
+                  }}
+                >
+                  <div style={{
+                    width: 8, height: 8, borderRadius: '50%',
+                    background: isActive ? '#fff' : '#10b981',
+                    boxShadow: isActive ? 'none' : '0 0 8px #10b981',
+                    flexShrink: 0
+                  }} />
+                  {label.name}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* ── Bottom info bar ── */}
+          <div style={{
+            position: 'absolute', bottom: 14, left: 14, right: 14,
+            background: 'rgba(2,5,9,0.88)',
+            border: '1px solid rgba(16,185,129,0.25)',
+            borderRadius: 16, padding: '14px 16px',
+            backdropFilter: 'blur(16px)',
+            display: 'flex', alignItems: 'flex-start', gap: 12,
+            boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
+          }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <h3 style={{
+                fontSize: 14, fontWeight: 700, color: '#6ee7b7',
+                margin: '0 0 5px 0',
+                display: 'flex', alignItems: 'center', gap: 8
+              }}>
+                {activeLabel && (
+                  <span style={{
+                    width: 8, height: 8, borderRadius: '50%',
+                    background: '#f43f5e', boxShadow: '0 0 8px #f43f5e',
+                    flexShrink: 0, display: 'inline-block'
+                  }} />
+                )}
+                {currentTitle}
+              </h3>
+              <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', margin: 0, lineHeight: 1.6 }}>
+                {currentExplanation}
+              </p>
+              {activeLabel && (
+                <button onClick={() => setActiveLabelId(null)} style={{
+                  background: 'none', border: 'none', color: '#10b981',
+                  fontSize: 11, fontWeight: 600, padding: 0, cursor: 'pointer', marginTop: 6
+                }}>
+                  ← Back to overview
+                </button>
+              )}
+            </div>
+            <button
+              onClick={() => onSpeak(currentExplanation)}
+              style={{
+                flexShrink: 0, width: 38, height: 38, borderRadius: '50%',
+                background: 'rgba(16,185,129,0.12)',
+                border: '1px solid rgba(16,185,129,0.25)',
+                color: '#10b981', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center'
+              }}
+            >
+              <Volume2 size={16} />
             </button>
           </div>
         </div>

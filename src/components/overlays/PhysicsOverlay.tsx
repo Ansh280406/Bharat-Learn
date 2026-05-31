@@ -103,7 +103,7 @@ export const PhysicsOverlay: React.FC<PhysicsOverlayProps> = ({ language, onSpea
   };
 
   return (
-    <div style={{ position: 'relative', width: '100%', height: '400px', borderRadius: '16px', overflow: 'hidden' }}>
+    <div style={{ position: 'absolute', inset: 0, borderRadius: '16px', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
       <canvas 
         ref={canvasRef} 
         width={800} 
