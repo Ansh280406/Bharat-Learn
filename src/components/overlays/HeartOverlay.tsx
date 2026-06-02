@@ -1,7 +1,7 @@
-import React, { useEffect, useRef, useState } from 'react';
-import * as THREE from 'three';
+import React, { useState } from 'react';
 import type { Language, PartExplanation } from '../../types';
 import { Volume2, Orbit } from 'lucide-react';
+import { HologramViewer } from '../three/HologramViewer';
 
 interface HeartOverlayProps {
   language: Language;
@@ -36,231 +36,7 @@ const explanations: Record<string, PartExplanation> = {
 };
 
 export const HeartOverlay: React.FC<HeartOverlayProps> = ({ language, onSpeak }) => {
-  const mountRef = useRef<HTMLDivElement>(null);
   const [selectedPart, setSelectedPart] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!mountRef.current) return;
-
-    const width = mountRef.current.clientWidth;
-    const height = mountRef.current.clientHeight;
-
-    // 1. Setup Scene, Camera & Renderer
-    const scene = new THREE.Scene();
-    scene.fog = new THREE.FogExp2(0x0a0b16, 0.05);
-
-    const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 100);
-    camera.position.set(0, 0, 8);
-
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-    renderer.setSize(width, height);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    mountRef.current.appendChild(renderer.domElement);
-
-    // 2. Add Lighting
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
-    scene.add(ambientLight);
-
-    const dirLight1 = new THREE.DirectionalLight(0xffffff, 0.8);
-    dirLight1.position.set(5, 10, 7);
-    scene.add(dirLight1);
-
-    const dirLight2 = new THREE.DirectionalLight(0x8b5cf6, 0.5); // Purple backlight
-    dirLight2.position.set(-5, -5, -5);
-    scene.add(dirLight2);
-
-    const pointLight = new THREE.PointLight(0x06b6d4, 1.2, 10); // Cyan glow
-    pointLight.position.set(0, 0, 2);
-    scene.add(pointLight);
-
-    // 3. Construct Procedural Heart Mesh Group
-    const heartGroup = new THREE.Group();
-    scene.add(heartGroup);
-
-    const materialRed = new THREE.MeshPhongMaterial({
-      color: 0xef4444,
-      emissive: 0x4a0e0e,
-      shininess: 100,
-      flatShading: false
-    });
-
-    const materialRedDark = new THREE.MeshPhongMaterial({
-      color: 0xb91c1c,
-      emissive: 0x3b0707,
-      shininess: 100
-    });
-
-    const materialBlue = new THREE.MeshPhongMaterial({
-      color: 0x3b82f6,
-      emissive: 0x0f172a,
-      shininess: 80
-    });
-
-    const materialGold = new THREE.MeshPhongMaterial({
-      color: 0xf59e0b,
-      emissive: 0x451a03,
-      shininess: 150
-    });
-
-    // 3a. Main Ventricle Body (Tapered sphere)
-    const mainBodyGeom = new THREE.SphereGeometry(1.4, 32, 32);
-    // Deform sphere to create anatomical heart shape (narrower bottom)
-    const pos = mainBodyGeom.attributes.position;
-    for (let i = 0; i < pos.count; i++) {
-      let y = pos.getY(i);
-      let x = pos.getX(i);
-      let z = pos.getZ(i);
-      // Taper the bottom
-      if (y < 0) {
-        let factor = 1 + (y * 0.4);
-        pos.setX(i, x * factor);
-        pos.setZ(i, z * factor);
-      }
-      // Elongate slightly down and tilt
-      pos.setY(i, y * 1.1 - 0.2);
-    }
-    mainBodyGeom.computeVertexNormals();
-    
-    const leftVentricleMesh = new THREE.Mesh(mainBodyGeom, materialRed);
-    leftVentricleMesh.name = 'left_ventricle';
-    heartGroup.add(leftVentricleMesh);
-
-    // 3b. Right Ventricle Attachment (smaller offset sphere)
-    const rightVentricleGeom = new THREE.SphereGeometry(1.1, 32, 32);
-    const posR = rightVentricleGeom.attributes.position;
-    for (let i = 0; i < posR.count; i++) {
-      let y = posR.getY(i);
-      let x = posR.getX(i);
-      let z = posR.getZ(i);
-      if (y < 0) {
-        let factor = 1 + (y * 0.3);
-        posR.setX(i, x * factor);
-        posR.setZ(i, z * factor);
-      }
-    }
-    rightVentricleGeom.computeVertexNormals();
-    const rightVentricleMesh = new THREE.Mesh(rightVentricleGeom, materialRedDark);
-    rightVentricleMesh.name = 'right_ventricle';
-    rightVentricleMesh.position.set(-0.7, 0.2, 0.3);
-    heartGroup.add(rightVentricleMesh);
-
-    // 3c. Aorta (Gold curved tube arching from top)
-    const aortaPath = new THREE.CatmullRomCurve3([
-      new THREE.Vector3(0.2, 1.0, 0),
-      new THREE.Vector3(0.4, 2.0, 0.2),
-      new THREE.Vector3(0.0, 2.6, 0.4),
-      new THREE.Vector3(-0.8, 2.3, 0.2),
-      new THREE.Vector3(-1.0, 1.2, -0.2),
-    ]);
-    const aortaGeom = new THREE.TubeGeometry(aortaPath, 32, 0.35, 16, false);
-    const aortaMesh = new THREE.Mesh(aortaGeom, materialGold);
-    aortaMesh.name = 'aorta';
-    heartGroup.add(aortaMesh);
-
-    // 3d. Vena Cava (Blue tubes entering right side)
-    const venaCavaUpperPath = new THREE.CatmullRomCurve3([
-      new THREE.Vector3(-1.0, 0.5, 0.5),
-      new THREE.Vector3(-1.2, 1.8, 0.4),
-    ]);
-    const venaCavaUpperGeom = new THREE.TubeGeometry(venaCavaUpperPath, 16, 0.25, 8, false);
-    const venaCavaUpperMesh = new THREE.Mesh(venaCavaUpperGeom, materialBlue);
-    venaCavaUpperMesh.name = 'right_ventricle'; // Treat VC clicks as RV area
-    heartGroup.add(venaCavaUpperMesh);
-
-    const venaCavaLowerPath = new THREE.CatmullRomCurve3([
-      new THREE.Vector3(-1.0, -0.5, 0.5),
-      new THREE.Vector3(-1.2, -1.8, 0.4),
-    ]);
-    const venaCavaLowerGeom = new THREE.TubeGeometry(venaCavaLowerPath, 16, 0.25, 8, false);
-    const venaCavaLowerMesh = new THREE.Mesh(venaCavaLowerGeom, materialBlue);
-    venaCavaLowerMesh.name = 'right_ventricle';
-    heartGroup.add(venaCavaLowerMesh);
-
-    // 3e. Pulmonary Valve (Glowing cylinder valve ring)
-    const valveGeom = new THREE.CylinderGeometry(0.3, 0.3, 0.3, 16);
-    const valveMesh = new THREE.Mesh(valveGeom, materialBlue);
-    valveMesh.name = 'pulmonary_valve';
-    valveMesh.position.set(-0.3, 1.3, 0.6);
-    valveMesh.rotation.z = 0.5;
-    heartGroup.add(valveMesh);
-
-    // 4. Double Pulse Beating Animation Loop
-    const clock = new THREE.Clock();
-
-    const animate = () => {
-      requestAnimationFrame(animate);
-
-      // Rotate model slightly
-      heartGroup.rotation.y = Math.sin(clock.getElapsedTime() * 0.1) * 0.4;
-      heartGroup.rotation.x = Math.sin(clock.getElapsedTime() * 0.05) * 0.2;
-
-      // Realistic biological "lub-dub" double pulse scaling
-      const time = clock.getElapsedTime() * 1.3; // Speed modifier
-      const phase = time % 1.0;
-      let scale = 1.0;
-
-      if (phase < 0.15) {
-        // First quick beat (Atria contracting - lub)
-        const subPhase = phase / 0.15;
-        scale = 1.0 + Math.sin(subPhase * Math.PI) * 0.07;
-      } else if (phase >= 0.2 && phase < 0.45) {
-        // Second stronger beat (Ventricles contracting - dub)
-        const subPhase = (phase - 0.2) / 0.25;
-        scale = 1.0 + Math.sin(subPhase * Math.PI) * 0.14;
-      }
-
-      heartGroup.scale.set(scale, scale, scale);
-
-      renderer.render(scene, camera);
-    };
-
-    animate();
-
-    // 5. Click/Raycast Handling
-    const raycaster = new THREE.Raycaster();
-    const pointer = new THREE.Vector2();
-
-    const handlePointerDown = (event: PointerEvent) => {
-      // Get click coords relative to canvas
-      const rect = renderer.domElement.getBoundingClientRect();
-      pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-      pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
-
-      raycaster.setFromCamera(pointer, camera);
-      const intersects = raycaster.intersectObjects(heartGroup.children);
-
-      if (intersects.length > 0) {
-        const hitMesh = intersects[0].object;
-        const name = hitMesh.name;
-        if (name && explanations[name]) {
-          selectPart(name);
-        }
-      }
-    };
-
-    renderer.domElement.addEventListener('pointerdown', handlePointerDown);
-
-    // 6. Handle Resizing
-    const handleResize = () => {
-      if (!mountRef.current) return;
-      const w = mountRef.current.clientWidth;
-      const h = mountRef.current.clientHeight;
-      camera.aspect = w / h;
-      camera.updateProjectionMatrix();
-      renderer.setSize(w, h);
-    };
-
-    window.addEventListener('resize', handleResize);
-
-    // Cleanup
-    return () => {
-      window.removeEventListener('resize', handleResize);
-      if (renderer && renderer.domElement && mountRef.current) {
-        renderer.domElement.removeEventListener('pointerdown', handlePointerDown);
-        mountRef.current.removeChild(renderer.domElement);
-      }
-    };
-  }, []);
 
   const selectPart = (partKey: string) => {
     setSelectedPart(partKey);
@@ -280,13 +56,20 @@ export const HeartOverlay: React.FC<HeartOverlayProps> = ({ language, onSpeak })
       padding: '20px',
       background: 'radial-gradient(circle at center, transparent 30%, rgba(10, 11, 22, 0.4) 100%)',
     }}>
-      {/* 3D Canvas Mounting Area */}
-      <div ref={mountRef} style={{
-        position: 'absolute',
-        inset: 0,
-        zIndex: 1,
-        cursor: 'grab'
-      }} />
+      {/* 3D Hologram Canvas */}
+      <HologramViewer
+        modelUrl="/models/heart.glb"
+        scale={2.2}
+        rotation={[-Math.PI / 2, 0, 0]}
+        hologramColor="#ef4444"
+        autoRotate={true}
+        rotateSpeed={0.5}
+        enableOrbitControls={true}
+        loadingLabel="Loading Heart Hologram..."
+        onPartClick={(name) => {
+          if (explanations[name]) selectPart(name);
+        }}
+      />
 
       {/* Orbit Tip Pill */}
       <div style={{
@@ -306,7 +89,7 @@ export const HeartOverlay: React.FC<HeartOverlayProps> = ({ language, onSpeak })
         pointerEvents: 'none'
       }}>
         <Orbit size={12} className="heart-pulse" />
-        <span>Tap 3D parts to learn</span>
+        <span>Drag to rotate • Tap parts to learn</span>
       </div>
 
       {/* Heart HTML Label Overlay Pins */}
@@ -455,7 +238,7 @@ export const HeartOverlay: React.FC<HeartOverlayProps> = ({ language, onSpeak })
             fontSize: '13px',
             color: 'var(--text-secondary)'
           }}>
-            👆 Click on any heart label or 3D section to learn its role in Indian languages!
+            👆 Click on any heart label or 3D model part to learn its role in Indian languages!
           </div>
         )}
       </div>

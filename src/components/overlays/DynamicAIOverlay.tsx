@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import type { Language } from '../../types';
 import { ScanLine, Volume2, RefreshCw } from 'lucide-react';
+import { HologramViewer } from '../three/HologramViewer';
 
 interface HologramLabel {
   id: string;
@@ -67,13 +68,27 @@ export const DynamicAIOverlay: React.FC<DynamicAIOverlayProps> = ({
       overflow: 'hidden',
     }}>
 
+      {/* 3D Hologram Background — always visible as ambient */}
+      <HologramViewer
+        modelUrl="/models/robot.glb"
+        scale={45.0}
+        hologramColor="#10b981"
+        autoRotate={true}
+        rotateSpeed={0.6}
+        enableOrbitControls={false}
+        loadingLabel="Generating AI Hologram..."
+        useFallback={false}
+        style={{ opacity: imageUrl && !imageError ? 0.3 : 0.8 }}
+      />
+
       {/* Scanning Grid */}
       <div style={{
         position: 'absolute', inset: 0,
         backgroundImage: 'linear-gradient(rgba(16,185,129,0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(16,185,129,0.04) 1px, transparent 1px)',
         backgroundSize: '40px 40px',
         animation: 'pan-bg 20s linear infinite',
-        pointerEvents: 'none'
+        pointerEvents: 'none',
+        zIndex: 2,
       }} />
 
       {analyzing ? (
@@ -130,7 +145,7 @@ export const DynamicAIOverlay: React.FC<DynamicAIOverlayProps> = ({
               pointerEvents: 'none'
             }} />
 
-            {/* Central image area - full 420×420 */}
+            {/* Central image area */}
             <div style={{
               position: 'absolute',
               top: '50%', left: '50%',
@@ -179,15 +194,16 @@ export const DynamicAIOverlay: React.FC<DynamicAIOverlayProps> = ({
                   />
                 </>
               ) : (
-                /* Fallback when image fails */
+                /* No image — the 3D hologram background is the main visual */
                 <div style={{
                   width: 160, height: 160, borderRadius: '50%',
-                  background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                  background: 'linear-gradient(135deg, rgba(16,185,129,0.2) 0%, rgba(5,150,105,0.1) 100%)',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  boxShadow: '0 0 60px rgba(16,185,129,0.5), 0 0 120px rgba(16,185,129,0.2)',
-                  color: '#fff',
+                  boxShadow: '0 0 60px rgba(16,185,129,0.3), 0 0 120px rgba(16,185,129,0.1)',
+                  color: '#6ee7b7',
                   fontSize: 14, fontWeight: 700, letterSpacing: '0.05em',
-                  textAlign: 'center', padding: 20, lineHeight: 1.4
+                  textAlign: 'center', padding: 20, lineHeight: 1.4,
+                  border: '1px solid rgba(16,185,129,0.25)',
                 }}>
                   {displayTitle}
                 </div>

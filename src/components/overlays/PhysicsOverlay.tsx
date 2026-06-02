@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import type { Language } from '../../types';
-import { Sun, ArrowRight, BookOpen } from 'lucide-react';
+import { Sun, BookOpen } from 'lucide-react';
+import { HologramViewer } from '../three/HologramViewer';
 
 interface PhysicsOverlayProps {
   language: Language;
@@ -104,18 +105,35 @@ export const PhysicsOverlay: React.FC<PhysicsOverlayProps> = ({ language, onSpea
 
   return (
     <div style={{ position: 'absolute', inset: 0, borderRadius: '16px', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+      {/* 3D Hologram Background — Prism model */}
+      <HologramViewer
+        modelUrl="/models/primary_ion_drive.glb"
+        scale={0.75}
+        hologramColor="#8b5cf6"
+        autoRotate={true}
+        rotateSpeed={0.4}
+        enableOrbitControls={false}
+        loadingLabel="Loading Prism Hologram..."
+        style={{ opacity: 0.6 }}
+      />
+
+      {/* 2D Canvas overlay for light simulation */}
       <canvas 
         ref={canvasRef} 
         width={800} 
         height={400} 
-        style={{ width: '100%', height: '100%', objectFit: 'contain', background: '#000' }} 
+        style={{ 
+          width: '100%', height: '100%', objectFit: 'contain',
+          position: 'absolute', inset: 0, zIndex: 5,
+          background: 'rgba(0,0,0,0.3)',
+        }} 
       />
       
       <div style={{
         position: 'absolute', bottom: '20px', left: '50%', transform: 'translateX(-50%)',
         background: 'rgba(7,14,28,0.85)', padding: '16px 24px', borderRadius: '16px',
         border: '1px solid rgba(255,255,255,0.1)', backdropFilter: 'blur(12px)',
-        width: '90%', maxWidth: '340px'
+        width: '90%', maxWidth: '340px', zIndex: 10,
       }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
