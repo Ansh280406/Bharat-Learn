@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { LogOut, Award, Flame, Zap, BookOpen, Star, Sparkles, CreditCard, Edit3, X, Save } from 'lucide-react';
+import { LogOut, Award, Flame, Zap, BookOpen, Star, Sparkles, CreditCard, Edit3, X, Save, Trash2 } from 'lucide-react';
 
 export const Profile: React.FC = () => {
   const { user, logout, addCredits, updateProfile } = useAuth();
@@ -154,11 +154,14 @@ export const Profile: React.FC = () => {
         </div>
 
         <button
-          onClick={() => addCredits(50)}
+          onClick={() => {
+            const added = 50 - user.credits;
+            if (added > 0) addCredits(added);
+          }}
           className="glass-btn primary"
           style={{ width: '100%', padding: '12px', borderRadius: '12px', fontSize: '14px', background: 'linear-gradient(135deg, var(--gold) 0%, #d97706 100%)', boxShadow: '0 4px 20px rgba(245,158,11,0.3)' }}
         >
-          <CreditCard size={16} /> Buy 50 More Credits
+          <CreditCard size={16} /> Refill to 50 Daily Credits
         </button>
       </div>
 
@@ -190,13 +193,26 @@ export const Profile: React.FC = () => {
       </div>
 
       {/* ── ACTIONS ── */}
-      <button
-        onClick={logout}
-        className="glass-btn ghost"
-        style={{ width: '100%', padding: '14px', borderRadius: '14px', color: 'var(--rose)', borderColor: 'rgba(244,63,94,0.3)', backgroundColor: 'rgba(244,63,94,0.05)' }}
-      >
-        <LogOut size={16} /> Sign Out
-      </button>
+      <div style={{ display: 'flex', gap: '12px' }}>
+        <button
+          onClick={logout}
+          className="glass-btn ghost"
+          style={{ flex: 1, padding: '14px', borderRadius: '14px', color: 'var(--text-secondary)', borderColor: 'rgba(255,255,255,0.1)', backgroundColor: 'rgba(255,255,255,0.05)' }}
+        >
+          <LogOut size={16} /> Sign Out
+        </button>
+        <button
+          onClick={() => {
+            if (window.confirm('Are you sure you want to reset all your progress, XP, and bookmarks?')) {
+              useAuth().resetProgress();
+            }
+          }}
+          className="glass-btn ghost"
+          style={{ flex: 1, padding: '14px', borderRadius: '14px', color: 'var(--rose)', borderColor: 'rgba(244,63,94,0.3)', backgroundColor: 'rgba(244,63,94,0.05)' }}
+        >
+          <Trash2 size={16} /> Reset Progress
+        </button>
+      </div>
     </div>
   );
 };

@@ -29,6 +29,24 @@ db.exec(`
     scanned_at  DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 
+  CREATE TABLE IF NOT EXISTS users (
+    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+    username         TEXT UNIQUE NOT NULL,
+    password         TEXT NOT NULL,
+    display_name     TEXT NOT NULL,
+    email            TEXT,
+    grade            TEXT,
+    school           TEXT,
+    joined_date      TEXT,
+    credits          INTEGER DEFAULT 50,
+    xp               INTEGER DEFAULT 0,
+    streak           INTEGER DEFAULT 1,
+    lessons_completed INTEGER DEFAULT 0,
+    quizzes_passed   INTEGER DEFAULT 0,
+    scans_used       INTEGER DEFAULT 0,
+    last_login_date  TEXT
+  );
+
   CREATE TABLE IF NOT EXISTS ar_library (
     id           INTEGER PRIMARY KEY AUTOINCREMENT,
     title        TEXT NOT NULL,
@@ -62,6 +80,68 @@ if (libraryCount.cnt === 0) {
   ]);
   console.log('✅ NCERT AR Library seeded with 8 entries.');
 }
+
+// ── Auth Endpoints ──────────────────────────────────────────────
+app.post('/api/auth/register', (req, res) => {
+  const { username, password, displayName, grade, school } = req.body;
+  const today = new Date().toISOString().split('T')[0];
+  try {
+    const insert = db.prepare(`
+      INSERT INTO users (username, password, display_name, email, grade, school, joined_date, last_login_date)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    const info = insert.run(username.toLowerCase().trim(), password, displayName, `${username}@bharatlearn.in`, grade, school, 'Jun 2026', today);
+    const user = db.prepare('SELECT * FROM users WHERE id = ?').get(info.lastInsertRowid);
+    res.json({ success: true, user });
+  } catch (err) {
+    if (err.message.includes('UNIQUE constraint failed')) {
+      res.status(400).json({ success: false, error: 'Username taken.' });
+    } else {
+      res.status(500).json({ success: false, error: 'Registration failed.' });
+    }
+  }
+});
+
+app.post('/api/auth/login', (req, res) => {
+  const { username, password } = req.body;
+  const today = new Date().toISOString().split('T')[0];
+  const user = db.prepare('SELECT * FROM users WHERE username = ? AND password = ?').get(username.toLowerCase().trim(), password);
+  if (!user) return res.status(401).json({ success: false, error: 'Invalid credentials.' });
+
+  let { streak, credits, last_login_date } = user;
+  if (last_login_date !== today) {
+    const lastDate = new Date(last_login_date);
+    const todayDate = new Date(today);
+    const diffDays = Math.floor((todayDate.getTime() - lastDate.getTime()) / (1000 * 60 * 60 * 24));
+    if (diffDays === 1) streak += 1;
+    else if (diffDays > 1) streak = 1;
+    credits = 50;
+    db.prepare('UPDATE users SET streak = ?, credits = ?, last_login_date = ? WHERE id = ?').run(streak, credits, today, user.id);
+    user.streak = streak;
+    user.credits = credits;
+    user.last_login_date = today;
+  }
+  res.json({ success: true, user });
+});
+
+app.post('/api/auth/update', (req, res) => {
+  const { username, credits, xp, lessons_completed, quizzes_passed, scans_used } = req.body;
+  try {
+    const update = db.prepare(`
+      UPDATE users 
+      SET credits = coalesce(?, credits), xp = coalesce(?, xp),
+          lessons_completed = coalesce(?, lessons_completed),
+          quizzes_passed = coalesce(?, quizzes_passed),
+          scans_used = coalesce(?, scans_used)
+      WHERE username = ?
+    `);
+    update.run(credits, xp, lessons_completed, quizzes_passed, scans_used, username);
+    const updatedUser = db.prepare('SELECT * FROM users WHERE username = ?').get(username);
+    res.json({ success: true, user: updatedUser });
+  } catch (err) {
+    res.status(500).json({ success: false, error: 'Update failed.' });
+  }
+});
 
 // ── Health Check ────────────────────────────────────────────────
 app.get('/api/health', (req, res) => {
@@ -327,7 +407,7 @@ A student scanned a textbook page with OCR. The extracted text is below.
    - "history"     → History — battles, kingdoms, ancient maps, timelines, rulers
    - "unknown"     → Anything else that doesn't clearly fit the above
 
-2. EXPLAIN the concept in simple, friendly language for a Class 6-10 Indian student (3-5 engaging sentences).
+2. EXPLAIN the concept in simple, friendly language for a Class 6-10 Indian student. Provide a detailed, engaging explanation (5-7 sentences). Make sure they thoroughly understand the concept.
 
 3. DESIGN A 2.5D HOLOGRAM: To make this concept visual, provide a short (max 15 words) image generation prompt that will create a highly detailed 3D render of the central object on a completely pure black background. Also provide 3 to 5 interactive labels for specific parts of the object.
 
@@ -344,11 +424,11 @@ Return ONLY valid JSON:
       {
         "id": "part1",
         "name": "<Name of Part (e.g. Small Intestine)>",
-        "description": "<MAX 10 WORDS explanation of this specific part>"
+        "description": "<Provide a detailed 2-3 sentence explanation of this specific part and its function>"
       }
     ]
   },
-  "aiExplanation": "<friendly MAX 2 SENTENCES explanation for a student>"
+  "aiExplanation": "<friendly detailed 5-7 sentence explanation for a student>"
 }
 
 OCR-extracted text:
@@ -452,15 +532,327 @@ ${text.trim()}
   }
 });
 
+// ── /api/locate-labels ─────────────────────────────────────────
+// AI Spatial Labeling: Uses Gemini Vision to find X,Y coordinates of parts in an image
+app.post('/api/locate-labels', async (req, res) => {
+  const { imageUrl, labels } = req.body;
+  if (!imageUrl || !labels || !Array.isArray(labels)) {
+    return res.status(400).json({ error: 'imageUrl and labels array are required' });
+  }
+
+  const geminiKey = process.env.GEMINI_API_KEY;
+  if (!geminiKey) {
+    // Sandbox mode: return random coordinates
+    const coords = {};
+    labels.forEach(l => {
+      coords[l.id] = { x: 20 + Math.random() * 60, y: 20 + Math.random() * 60 };
+    });
+    return res.json({ status: 'success', coordinates: coords });
+  }
+
+  try {
+    console.log('🤖 [AI Spatial Labeling] Fetching image from Pollinations...');
+    const imageRes = await fetch(imageUrl);
+    if (!imageRes.ok) throw new Error('Failed to fetch generated image');
+    
+    const arrayBuffer = await imageRes.arrayBuffer();
+    const base64Image = Buffer.from(arrayBuffer).toString('base64');
+    const mimeType = imageRes.headers.get('content-type') || 'image/jpeg';
+
+    const labelNamesList = labels.map(l => `ID: ${l.id} - Name: ${l.name}`).join('\\n');
+
+    const prompt = `You are a spatial labeling assistant. I have provided an image.
+Find the following parts in the image:
+${labelNamesList}
+
+For each part, determine its rough center point as a percentage of the image width (x) and height (y) from the top-left corner.
+0,0 is top-left. 100,100 is bottom-right.
+If a part is not clearly visible, guess its logical approximate position on the central object.
+
+Return ONLY valid JSON in this exact format:
+{
+  "coordinates": {
+    "part1_id": { "x": 50, "y": 25 },
+    "part2_id": { "x": 75, "y": 60 }
+  }
+}`;
+
+    console.log('🤖 [AI Spatial Labeling] Asking Gemini Vision for coordinates...');
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{
+            parts: [
+              { text: prompt },
+              { inline_data: { mime_type: mimeType, data: base64Image } }
+            ]
+          }],
+          generationConfig: { 
+            temperature: 0.1, 
+            responseMimeType: "application/json"
+          }
+        })
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(`Gemini API error: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    const assistantMessage = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    
+    let parsedResult;
+    let jsonString = assistantMessage.trim();
+    if (jsonString.startsWith('\`\`\`')) {
+      jsonString = jsonString.replace(/^\`\`\`(json)?\n?/, '').replace(/\n?\`\`\`$/, '');
+    }
+    parsedResult = JSON.parse(jsonString);
+
+    console.log('✅ [AI Spatial Labeling] Coordinates received successfully!');
+    res.json({ status: 'success', coordinates: parsedResult.coordinates || {} });
+
+  } catch (error) {
+    console.error('❌ locate-labels error:', error.message);
+    res.status(500).json({ error: `Server error: ${error.message}` });
+  }
+});
+
+
+// ── /api/generate-quiz ─────────────────────────────────────────
+app.post('/api/generate-quiz', async (req, res) => {
+  const { topic, language } = req.body;
+  if (!topic) return res.status(400).json({ error: 'topic is required' });
+  
+  const langNames = { en: 'English', hi: 'Hindi', gu: 'Gujarati' };
+  const targetLang = langNames[language || 'en'] || 'English';
+
+  const geminiKey = process.env.GEMINI_API_KEY;
+  const anthropicKey = process.env.ANTHROPIC_API_KEY;
+
+  if (!geminiKey && !anthropicKey) {
+    return res.json({
+      status: 'success',
+      quiz: [{ question: 'Mock Question: What is ' + topic + '?', options: ['1','2','3','4'], answerIndex: 0, explanation: 'Mock quiz.' }]
+    });
+  }
+
+  const prompt = `Generate exactly 5 multiple-choice questions about "${topic}". 
+The questions and explanations MUST be written in ${targetLang}.
+Format the output strictly as a JSON array of objects, with no markdown wrappers or code blocks.
+[
+  {
+    "question": "The question text",
+    "options": ["Option A", "Option B", "Option C", "Option D"],
+    "answerIndex": 2,
+    "explanation": "Brief explanation of why Option C is correct."
+  }
+]`;
+
+  try {
+    let assistantMessage = '';
+    if (geminiKey) {
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: { temperature: 0.3, maxOutputTokens: 2048, responseMimeType: 'application/json' }
+        })
+      });
+      const data = await response.json();
+      assistantMessage = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    } else if (anthropicKey) {
+      const response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'x-api-key': anthropicKey, 'anthropic-version': '2023-06-01' },
+        body: JSON.stringify({ model: 'claude-3-5-sonnet-20241022', max_tokens: 2048, messages: [{ role: 'user', content: prompt }] })
+      });
+      const data = await response.json();
+      assistantMessage = data.content?.[0]?.text || '';
+    }
+
+    let jsonString = assistantMessage.trim().replace(/^\s*```(json)?\n?/, '').replace(/\n?```\s*$/, '');
+    const parsed = JSON.parse(jsonString);
+    res.json({ status: 'success', quiz: parsed });
+  } catch (err) {
+    console.error('generate-quiz error:', err.message);
+    res.status(500).json({ error: 'Failed to generate quiz' });
+  }
+});
+
+// ── /api/generate-ar ───────────────────────────────────────────
+app.post('/api/generate-ar', async (req, res) => {
+  const { topic, description, language } = req.body;
+  if (!topic) return res.status(400).json({ error: 'topic is required' });
+
+  const geminiKey = process.env.GEMINI_API_KEY;
+  const anthropicKey = process.env.ANTHROPIC_API_KEY;
+
+  if (!geminiKey && !anthropicKey) {
+    return res.json({
+      status: 'success',
+      source: 'fallback',
+      aiExplanation: `${topic} is an important concept. Explore the interactive AR diagram by tapping each label to learn about its specific components and functions.`,
+      hologramLabels: [
+        { id: 'main', name: topic, description: `Core concept: ${topic}. This is the primary subject of this AR lesson.` },
+      ],
+      hologramHtml: null,
+    });
+  }
+
+  const targetLang = language === 'hi' ? 'Hindi' : language === 'gu' ? 'Gujarati' : 'English';
+
+  const prompt = `You are an expert creative coder and educational designer building an AR simulator for Indian school students.
+
+Generate an educational holographic visualization for: "${topic}"
+
+You must return EXACTLY two parts:
+1. A JSON block containing the explanation and labels.
+2. A raw HTML block containing the visualization.
+
+Use this EXACT format for your response:
+
+\`\`\`json
+{
+  "aiExplanation": "5-7 sentence engaging explanation in ${targetLang} for a Class 6-12 Indian student. Use analogies, mention NCERT, explain WHY it matters.",
+  "hologramLabels": [
+    {"id": "part1", "name": "Part Name in ${targetLang}", "description": "2-3 sentences about this part's function in ${targetLang}."}
+  ]
+}
+\`\`\`
+===HTML===
+<!DOCTYPE html>
+<html>
+<!-- YOUR FULL HTML HERE -->
+</html>
+
+CRITICAL RULES FOR THE HTML:
+1. Write a COMPLETE self-contained HTML file with ALL CSS and JS inline
+2. The background MUST be #000000 (pure black) or transparent
+3. Use SVG elements to draw a RECOGNIZABLE diagram of "${topic}" — not just circles or blobs
+4. Label key parts directly in the SVG with <text> elements
+5. Add smooth CSS animations: @keyframes for pulsing, rotating, flowing, glowing effects
+6. Make it look like a real educational textbook diagram but animated and glowing
+7. Use bright neon colors: cyan (#00ffff), lime (#00ff88), orange (#ff8800), magenta (#ff00ff) for glow effects on dark background
+8. Include interactive hover effects where elements glow brighter on mouseover
+9. The diagram must fill the full viewport (100vw x 100vh)
+10. Add a small title at top in glowing text
+
+EXAMPLE STRUCTURE for a heart diagram (adapt for "${topic}"):
+- Draw the main shape with SVG paths
+- Add labeled arrows pointing to key parts
+- Animate blood flow with moving dots along paths
+- Make chambers pulse with scale animations
+
+The HTML MUST be visually impressive, scientifically accurate, and clearly show what "${topic}" looks like.`;
+
+  try {
+    let assistantMessage = '';
+
+    if (geminiKey) {
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: { temperature: 0.4, maxOutputTokens: 8192 },
+            safetySettings: [
+              { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
+              { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
+              { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
+              { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" }
+            ]
+          })
+        }
+      );
+      const data = await response.json();
+      if (!response.ok) {
+        if (data?.error?.code === 503) {
+           throw new Error("Model is overloaded (503). Please try again in a moment.");
+        }
+        throw new Error(`Gemini API error: ${data?.error?.message || response.statusText}`);
+      }
+      assistantMessage = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+      console.log(`✅ [generate-ar] Got response for topic: ${topic} | finishReason: ${data.candidates?.[0]?.finishReason}`);
+    } else if (anthropicKey) {
+      const response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': anthropicKey, 'anthropic-version': '2023-06-01' },
+        body: JSON.stringify({
+          model: process.env.ANTHROPIC_MODEL || 'claude-3-5-sonnet-20241022',
+          max_tokens: 4096,
+          messages: [{ role: 'user', content: prompt }]
+        })
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(`Claude API error: ${data?.error?.message || response.statusText}`);
+      assistantMessage = data.content?.[0]?.text || '';
+    }
+
+    if (!assistantMessage || assistantMessage.trim() === '') {
+       throw new Error("AI returned an empty response. It might be overloaded.");
+    }
+
+    let parsed = { aiExplanation: '', hologramLabels: [], hologramHtml: '' };
+    try {
+      let jsonPart = assistantMessage;
+      let htmlPart = '';
+      
+      if (assistantMessage.includes('===HTML===')) {
+        const parts = assistantMessage.split('===HTML===');
+        jsonPart = parts[0];
+        htmlPart = parts[1]?.trim() || '';
+      }
+
+      let jsonString = jsonPart.trim().replace(/^\s*```(json)?\n?/, '').replace(/\n?```\s*$/, '');
+      const parsedJson = JSON.parse(jsonString);
+      
+      parsed.aiExplanation = parsedJson.aiExplanation || '';
+      parsed.hologramLabels = parsedJson.hologramLabels || [];
+      parsed.hologramHtml = htmlPart || parsedJson.hologramHtml || '';
+    } catch (parseError) {
+      console.error(`[generate-ar] Parsing Error:`, parseError.message);
+      console.log(`[generate-ar] Raw AI output was:\n`, assistantMessage);
+      
+      // Fallback if the LLM failed to produce valid format (usually due to mid-stream truncation)
+      parsed = {
+        aiExplanation: `Here is a simulation of ${topic}. (Note: The AI was interrupted due to high network load and couldn't finish generating the interactive features. Please click Re-scan to try again.)`,
+        hologramLabels: [
+          { id: '1', name: "Generation Interrupted", description: "The AI was overloaded and stopped generating midway." }
+        ],
+        hologramHtml: `<div style="color:white; display:flex; flex-direction:column; align-items:center; justify-content:center; height:100vh; background:#020509; font-family:sans-serif; text-align:center; padding: 20px;">
+          <h2 style="color: #ef4444; margin-bottom: 10px;">⚠️ Server Overloaded</h2>
+          <p style="color: rgba(255,255,255,0.7); max-width: 300px;">The AI model is currently experiencing high demand and cut off the generation midway.</p>
+          <p style="color: #8b5cf6; font-weight: bold; margin-top: 20px;">Please tap "Re-scan" in the top right to try again.</p>
+        </div>`
+      };
+    }
+
+    return res.json({
+      status: 'success',
+      source: geminiKey ? 'gemini' : 'claude',
+      aiExplanation: parsed.aiExplanation,
+      hologramLabels: parsed.hologramLabels || [],
+      hologramHtml: parsed.hologramHtml,
+    });
+  } catch (err) {
+    console.error('generate-ar error:', err.message);
+    res.status(500).json({ error: 'Failed to generate AR content', details: err.message });
+  }
+});
+
 // ── Serve frontend (production build) ────────────────────────────
 app.use(express.static('../dist'));
-
 
 app.listen(PORT, () => {
   const hasGemini = !!process.env.GEMINI_API_KEY;
   const hasAnthropic = !!process.env.ANTHROPIC_API_KEY;
   const mode = hasGemini
-    ? '🟢 Gemini 1.5 Flash — AI Active'
+    ? '🟢 Gemini 2.5 Flash — AI Active'
     : hasAnthropic
     ? '🟡 Claude AI Active'
     : '🔴 Sandbox Mode (add GEMINI_API_KEY to server/.env)';

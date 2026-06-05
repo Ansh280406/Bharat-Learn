@@ -9,14 +9,14 @@ import { ChemistryOverlay } from '../overlays/ChemistryOverlay';
 import { Math3DOverlay } from '../overlays/Math3DOverlay';
 import { DynamicAIOverlay } from '../overlays/DynamicAIOverlay';
 import { ARQuiz } from './ARQuiz';
+import { useAuth } from '../../context/AuthContext';
 import {
-  Sparkles, ArrowLeft, BrainCircuit, CheckCircle,
-  Volume2, Trophy, ChevronRight
+  ArrowLeft, BrainCircuit,
+  Volume2, Trophy, ChevronRight, Bookmark
 } from 'lucide-react';
 
 interface ARContainerProps {
   pageType: PageType;
-  confidence: number;
   extractedInfo: any;
   language: Language;
   aiExplanation?: string | null;
@@ -26,29 +26,34 @@ interface ARContainerProps {
 }
 
 const SUBJECT_META: Record<PageType, { title: string; emoji: string; color: string; glow: string; subject: string }> = {
-  heart:       { title: 'Anatomy of the Heart',    emoji: '❤️',  color: '#f43f5e', glow: 'rgba(244,63,94,0.3)',   subject: 'Biology'    },
-  water_cycle: { title: "Earth's Water Cycle",     emoji: '💧',  color: '#0ea5e9', glow: 'rgba(14,165,233,0.3)',  subject: 'Geography'  },
-  math:        { title: 'Step-by-Step Algebra',    emoji: '📐',  color: '#10b981', glow: 'rgba(16,185,129,0.3)',  subject: 'Mathematics'},
-  math_3d:     { title: '3D Geometry Explorer',    emoji: '🧠',  color: '#0ea5e9', glow: 'rgba(14,165,233,0.3)',  subject: 'Mathematics'},
-  history:     { title: 'Tactical Battle Map',     emoji: '⚔️',  color: '#f59e0b', glow: 'rgba(245,158,11,0.3)',  subject: 'History'    },
-  physics:     { title: 'Optics & Light Lab',      emoji: '🌈',  color: '#8b5cf6', glow: 'rgba(139,92,246,0.3)',  subject: 'Physics'    },
-  chemistry:   { title: 'Organic Chemistry',       emoji: '🧪',  color: '#14b8a6', glow: 'rgba(20,184,166,0.3)',  subject: 'Chemistry'  },
-  unknown:     { title: 'AI Educational Companion',emoji: '📚',  color: '#6366f1', glow: 'rgba(99,102,241,0.3)',  subject: 'AI Scan'    },
+  heart: { title: 'Anatomy of the Heart', emoji: '❤️', color: '#f43f5e', glow: 'rgba(244,63,94,0.3)', subject: 'Biology' },
+  water_cycle: { title: "Earth's Water Cycle", emoji: '💧', color: '#0ea5e9', glow: 'rgba(14,165,233,0.3)', subject: 'Geography' },
+  math: { title: 'Step-by-Step Algebra', emoji: '📐', color: '#10b981', glow: 'rgba(16,185,129,0.3)', subject: 'Mathematics' },
+  math_3d: { title: '3D Geometry Explorer', emoji: '🧠', color: '#0ea5e9', glow: 'rgba(14,165,233,0.3)', subject: 'Mathematics' },
+  history: { title: 'Tactical Battle Map', emoji: '⚔️', color: '#f59e0b', glow: 'rgba(245,158,11,0.3)', subject: 'History' },
+  physics: { title: 'Optics & Light Lab', emoji: '🌈', color: '#8b5cf6', glow: 'rgba(139,92,246,0.3)', subject: 'Physics' },
+  chemistry: { title: 'Organic Chemistry', emoji: '🧪', color: '#14b8a6', glow: 'rgba(20,184,166,0.3)', subject: 'Chemistry' },
+  unknown: { title: 'AI Educational Companion', emoji: '📚', color: '#6366f1', glow: 'rgba(99,102,241,0.3)', subject: 'AI Scan' },
 };
 
 export const ARContainer: React.FC<ARContainerProps> = ({
-  pageType, confidence, extractedInfo, language,
+  pageType, extractedInfo, language,
   aiExplanation, onSpeak, onSpeakStop, onReset,
 }) => {
+  const { user, toggleBookmark } = useAuth();
   const [showQuiz, setShowQuiz] = useState(false);
-  const [aiExpanded, setAiExpanded] = useState(true);
+  const [aiExpanded, setAiExpanded] = useState(false);
   const meta = SUBJECT_META[pageType] || SUBJECT_META.unknown;
+  
+  const isBookmarked = user?.bookmarks?.some(b => b.pageType === pageType) || false;
 
   const getSubjectSub = () => {
     if (language === 'hi') return 'अंगों को टैप करें या व्याख्या सुनें।';
     if (language === 'gu') return 'અંગોને ટેપ કરો અથવા સ્પષ્ટીકરણ સાંભળો.';
     return 'Tap elements to explore • Voice guide available';
   };
+
+  const displayTitle = extractedInfo?.title || meta.title;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', width: '100%' }}>
@@ -57,7 +62,7 @@ export const ARContainer: React.FC<ARContainerProps> = ({
       <div className="glass-card anim-scale-in" style={{
         padding: '16px 20px',
         border: `1px solid ${meta.color}25`,
-        background: `linear-gradient(135deg, rgba(7,14,28,0.9) 0%, ${meta.color}08 100%)`,
+        background: `linear-gradient(135deg, var(--glass-bg) 0%, ${meta.color}08 100%)`,
       }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           {/* Left: subject info */}
@@ -80,33 +85,38 @@ export const ARContainer: React.FC<ARContainerProps> = ({
                 }}>
                   {meta.subject} • AR Active
                 </span>
-                <span style={{
-                  fontSize: '10px', fontWeight: '700', padding: '2px 8px',
-                  borderRadius: '999px', background: 'rgba(34,197,94,0.12)',
-                  color: '#22c55e', border: '1px solid rgba(34,197,94,0.25)',
-                }}>
-                  {Math.round(confidence * 100)}% match
-                </span>
               </div>
               <h3 style={{
                 fontSize: '16px', fontFamily: 'var(--font-heading)',
                 fontWeight: '800', color: 'var(--text-primary)',
                 whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
               }}>
-                {meta.title}
+                {displayTitle}
               </h3>
             </div>
           </div>
 
-          {/* Back button */}
-          <button
-            onClick={() => { onSpeakStop(); onReset(); }}
-            className="glass-btn ghost"
-            style={{ padding: '8px 14px', flexShrink: 0, marginLeft: '12px' }}
-          >
-            <ArrowLeft size={14} />
-            <span className="hide-mobile">Back</span>
-          </button>
+          {/* Right Action buttons */}
+          <div style={{ display: 'flex', gap: '8px' }}>
+            {user && (
+              <button
+                onClick={() => toggleBookmark(pageType, displayTitle)}
+                className="glass-btn ghost"
+                style={{ padding: '8px', color: isBookmarked ? 'var(--rose)' : 'var(--text-muted)' }}
+                title={isBookmarked ? 'Remove Bookmark' : 'Add Bookmark'}
+              >
+                <Bookmark size={18} fill={isBookmarked ? 'currentColor' : 'none'} />
+              </button>
+            )}
+            <button
+              onClick={() => { onSpeakStop(); onReset(); }}
+              className="glass-btn ghost"
+              style={{ padding: '8px 14px' }}
+            >
+              <ArrowLeft size={14} />
+              <span className="hide-mobile">Back</span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -114,7 +124,7 @@ export const ARContainer: React.FC<ARContainerProps> = ({
       {aiExplanation && (
         <div className="glass-card anim-fade-up" style={{
           border: '1px solid rgba(16,185,129,0.20)',
-          background: 'linear-gradient(135deg, rgba(7,14,28,0.9) 0%, rgba(16,185,129,0.05) 100%)',
+          background: 'linear-gradient(135deg, var(--glass-bg) 0%, rgba(16,185,129,0.05) 100%)',
           overflow: 'hidden',
         }}>
           {/* Header row */}
@@ -182,24 +192,26 @@ export const ARContainer: React.FC<ARContainerProps> = ({
           <>
             {extractedInfo?.isLibrary ? (
               <>
-                {pageType === 'heart'       && <HeartOverlay      language={language} onSpeak={onSpeak} />}
+                {pageType === 'heart' && <HeartOverlay language={language} onSpeak={onSpeak} />}
                 {pageType === 'water_cycle' && <WaterCycleOverlay language={language} onSpeak={onSpeak} />}
-                {pageType === 'math'        && <MathOverlay       language={language} onSpeak={onSpeak} />}
-                {pageType === 'math_3d'     && <Math3DOverlay     language={language} onSpeak={onSpeak} />}
-                {pageType === 'history'     && <BattleMapOverlay  language={language} onSpeak={onSpeak} battleName={extractedInfo?.battleName} />}
-                {pageType === 'physics'     && <PhysicsOverlay    language={language} onSpeak={onSpeak} />}
-                {pageType === 'chemistry'   && <ChemistryOverlay  language={language} onSpeak={onSpeak} />}
-                {pageType === 'unknown'     && <DynamicAIOverlay  language={language} onSpeak={onSpeak} onReset={onReset} aiExplanation={aiExplanation} title={extractedInfo?.title} imagePrompt={extractedInfo?.hologramImagePrompt} labels={extractedInfo?.hologramLabels} />}
+                {pageType === 'math' && <MathOverlay language={language} onSpeak={onSpeak} />}
+                {pageType === 'math_3d' && <Math3DOverlay language={language} onSpeak={onSpeak} />}
+                {pageType === 'history' && <BattleMapOverlay language={language} onSpeak={onSpeak} battleName={extractedInfo?.battleName} />}
+                {pageType === 'physics' && <PhysicsOverlay language={language} onSpeak={onSpeak} />}
+                {pageType === 'chemistry' && <ChemistryOverlay language={language} onSpeak={onSpeak} />}
+                {pageType === 'unknown' && <DynamicAIOverlay language={language} onSpeak={onSpeak} onReset={onReset} aiExplanation={aiExplanation} title={extractedInfo?.title} imagePrompt={extractedInfo?.hologramImagePrompt} labels={extractedInfo?.hologramLabels} hologramHtml={extractedInfo?.hologramHtml} wikipediaQuery={extractedInfo?.wikipediaQuery} />}
               </>
             ) : (
-              <DynamicAIOverlay  
-                language={language} 
-                onSpeak={onSpeak} 
-                onReset={onReset} 
-                aiExplanation={aiExplanation} 
-                title={extractedInfo?.title || meta.title} 
+              <DynamicAIOverlay
+                language={language}
+                onSpeak={onSpeak}
+                onReset={onReset}
+                aiExplanation={aiExplanation}
+                title={extractedInfo?.title || meta.title}
                 imagePrompt={extractedInfo?.hologramImagePrompt}
                 labels={extractedInfo?.hologramLabels}
+                hologramHtml={extractedInfo?.hologramHtml}
+                wikipediaQuery={extractedInfo?.wikipediaQuery}
               />
             )}
           </>
@@ -213,7 +225,9 @@ export const ARContainer: React.FC<ARContainerProps> = ({
             backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)',
           }}>
             <ARQuiz
-              pageType={pageType} language={language}
+              pageType={pageType}
+              topic={extractedInfo?.title || extractedInfo?.wikipediaQuery}
+              language={language}
               onSpeak={onSpeak}
               onClose={() => setShowQuiz(false)}
             />

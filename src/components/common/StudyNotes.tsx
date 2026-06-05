@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { FileText, Download, Trash2, Plus, BrainCircuit } from 'lucide-react';
+import { Download, Trash2, Plus, BrainCircuit } from 'lucide-react';
 
 interface StudyNote {
   id: string;

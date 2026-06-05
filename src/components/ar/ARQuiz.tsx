@@ -4,13 +4,14 @@ import { Award, CheckCircle2, XCircle, ArrowRight, RotateCcw, Volume2 } from 'lu
 import { useAuth } from '../../context/AuthContext';
 
 interface ARQuizProps {
+  topic?: string;
   pageType: PageType;
   language: Language;
   onSpeak: (text: string) => void;
   onClose: () => void;
 }
 
-const quizDatabase: Record<PageType, Record<Language, QuizQuestion[]>> = {
+const quizDatabase: Partial<Record<PageType, Record<Language, QuizQuestion[]>>> = {
   heart: {
     en: [
       {
@@ -328,20 +329,47 @@ const quizDatabase: Record<PageType, Record<Language, QuizQuestion[]>> = {
   }
 };
 
-export const ARQuiz: React.FC<ARQuizProps> = ({ pageType, language, onSpeak, onClose }) => {
+export const ARQuiz: React.FC<ARQuizProps> = ({ pageType, topic, language, onSpeak, onClose }) => {
+  const queryTopic = topic || pageType;
   const { incrementQuizzes } = useAuth();
-  const questions = quizDatabase[pageType]?.[language] || [];
+
+  // Dynamic questions from API, with static fallback
+  const staticQuestions = quizDatabase[pageType]?.[language] || [];
+  const [questions, setQuestions] = useState<QuizQuestion[]>(staticQuestions);
+  const [isLoadingQuiz, setIsLoadingQuiz] = useState(true);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [currentIdx, setCurrentIdx] = useState(0);
   const [selectedOpt, setSelectedOpt] = useState<number | null>(null);
   const [isAnswered, setIsAnswered] = useState(false);
   const [score, setScore] = useState(0);
   const [quizFinished, setQuizFinished] = useState(false);
+  const currentQuestion = questions[currentIdx] || questions[0] || null;
 
-  // If no questions (unknown type), don't render anything
-  if (questions.length === 0) return null;
-
-  const currentQuestion = questions[currentIdx];
+  // Fetch 5 dynamic questions from backend AI
+  useEffect(() => {
+    const fetchQuiz = async () => {
+      setIsLoadingQuiz(true);
+      try {
+        const res = await fetch('/api/generate-quiz', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ topic: queryTopic, language })
+        });
+        if (!res.ok) throw new Error('Quiz API failed');
+        const data = await res.json();
+        if (data.quiz && Array.isArray(data.quiz) && data.quiz.length > 0) {
+          setQuestions(data.quiz);
+        } else if (staticQuestions.length > 0) {
+          setQuestions(staticQuestions);
+        }
+      } catch {
+        if (staticQuestions.length > 0) setQuestions(staticQuestions);
+      } finally {
+        setIsLoadingQuiz(false);
+      }
+    };
+    fetchQuiz();
+  }, [queryTopic, language]);
 
   // Confetti Particle Engine
   useEffect(() => {
@@ -458,6 +486,35 @@ export const ARQuiz: React.FC<ARQuizProps> = ({ pageType, language, onSpeak, onC
       window.removeEventListener('resize', resizeHandler);
     };
   }, [quizFinished, score]);
+
+    // Show loading spinner while fetching
+  if (isLoadingQuiz) {
+    return (
+      <div style={{
+        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+        padding: '40px 20px', gap: 16
+      }}>
+        <div style={{
+          width: 48, height: 48, borderRadius: '50%',
+          border: '3px solid rgba(139,92,246,0.3)',
+          borderTopColor: '#8b5cf6',
+          animation: 'spin 1s linear infinite'
+        }} />
+        <p style={{ color: '#8b5cf6', fontSize: 13, fontWeight: 600, margin: 0 }}>
+          Generating quiz for "{queryTopic}"...
+        </p>
+      </div>
+    );
+  }
+
+  // If no questions at all, show a message
+  if (questions.length === 0) return (
+    <div style={{ textAlign: 'center', padding: '40px 20px', color: 'rgba(255,255,255,0.5)', fontSize: 13 }}>
+      Quiz not available for this topic right now.
+    </div>
+  );
+
+
 
   const handleOptionClick = (idx: number) => {
     if (isAnswered) return;

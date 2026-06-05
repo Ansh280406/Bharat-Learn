@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { Language, PageType, ScanResult } from '../types';
+import type { Language, ScanResult } from '../types';
 
 interface AppState {
   language: Language;

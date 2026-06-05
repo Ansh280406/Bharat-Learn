@@ -1,4 +1,6 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+const fs = require('fs');
+
+const authContextContent = `import React, { createContext, useContext, useState, useEffect } from 'react';
 
 export interface UserProfile {
   id: string | number;
@@ -82,7 +84,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     id: dbUser.id,
     username: dbUser.username,
     displayName: dbUser.display_name,
-    email: dbUser.email || `${dbUser.username}@bharatlearn.in`,
+    email: dbUser.email || \`\${dbUser.username}@bharatlearn.in\`,
     avatar: dbUser.display_name.charAt(0).toUpperCase(),
     grade: dbUser.grade || 'Class X',
     school: dbUser.school || '',
@@ -210,3 +212,16 @@ export const useAuth = () => {
   if (!ctx) throw new Error('useAuth must be used inside AuthProvider');
   return ctx;
 };
+`;
+
+fs.writeFileSync('src/context/AuthContext.tsx', authContextContent, 'utf8');
+
+let loginContent = fs.readFileSync('src/components/auth/Login.tsx', 'utf8');
+loginContent = loginContent.replace(/const handleSubmit = \(e: React\.FormEvent\) => \{/g, 'const handleSubmit = async (e: React.FormEvent) => {');
+loginContent = loginContent.replace(/setTimeout\(\(\) => \{/g, '');
+loginContent = loginContent.replace(/result = register/g, 'result = await register');
+loginContent = loginContent.replace(/result = login/g, 'result = await login');
+loginContent = loginContent.replace(/      if \(!result\.success\) \{\n        setError\(result\.error \|\| 'Authentication failed'\);\n        setIsLoading\(false\);\n      \}\n    \}, 800\);/g, "      if (!result.success) {\n        setError(result.error || 'Authentication failed');\n      }\n      setIsLoading(false);");
+fs.writeFileSync('src/components/auth/Login.tsx', loginContent, 'utf8');
+
+console.log('Refactored AuthContext.tsx and Login.tsx');

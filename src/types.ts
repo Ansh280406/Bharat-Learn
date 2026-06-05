@@ -24,6 +24,8 @@ export interface ScanResult {
   isLibrary?: boolean; // True if launched from NCERT Library / Sandbox
   hologramImagePrompt?: string | null;
   hologramLabels?: any[] | null;
+  hologramHtml?: string | null; // Dynamically generated HTML AR scene
+  wikipediaQuery?: string | null;
 }
 
 export interface PartExplanation {

@@ -1,0 +1,7 @@
+﻿export const ARQuiz: React.FC<ARQuizProps> = ({ pageType, topic, language, onSpeak, onClose }) => {
+  const queryTopic = topic || pageType;
+  const { incrementQuizzes } = useAuth();
+  const questions = quizDatabase[pageType]?.[language] || [];
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [currentIdx, setCurrentIdx] = useState(0);
+  const [selectedOpt, setSelectedOpt] = useStat

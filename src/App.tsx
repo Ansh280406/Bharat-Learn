@@ -27,12 +27,15 @@ const ALL_PAGE_MOCK: Record<PageType, { title: string; details: string; mathEqua
 };
 
 function App() {
-  const { user, isAuthenticated, useCredit, updateXP, incrementLessons } = useAuth();
+  const { user, isAuthenticated, updateXP, incrementLessons } = useAuth();
   const [activeTab, setActiveTab] = useState<AppTab>('scanner');
+
   const [language, setLanguage] = useState<Language>('en');
   const [isScanning, setIsScanning] = useState(false);
   const [scanResult, setScanResult] = useState<ScanResult | null>(null);
   const [sessionsToday, setSessionsToday] = useState(user?.scansUsed || 0);
+  const [libraryStandardId, setLibraryStandardId] = useState<string | null>(null);
+  const [librarySubjectId, setLibrarySubjectId] = useState<string | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
@@ -55,30 +58,48 @@ function App() {
       isLibrary: extractedInfo?.isLibrary,
       hologramImagePrompt: extractedInfo?.hologramImagePrompt || null,
       hologramLabels: extractedInfo?.hologramLabels || null,
+      hologramHtml: extractedInfo?.hologramHtml || null,
+      wikipediaQuery: extractedInfo?.wikipediaQuery || null,
     });
     updateXP(25);
     setSessionsToday(prev => prev + 1);
   };
 
-  const handleSelectSubjectOffline = (subject: PageType) => {
-    const data = ALL_PAGE_MOCK[subject];
+  const handleSelectSubjectOffline = (mod: any) => {
+    // If it's just a string, fallback to ALL_PAGE_MOCK
+    const pageType = typeof mod === 'string' ? mod : mod.type;
+    const data = ALL_PAGE_MOCK[pageType as PageType] || {
+      title: mod.title || 'Interactive Lesson',
+      details: mod.description || 'Educational AR Overlay'
+    };
+
     setScanResult({
-      pageType: subject,
+      pageType: pageType as PageType,
       confidence: 1.0,
-      title: data.title,
-      details: data.details,
+      title: typeof mod !== 'string' && mod.title ? mod.title : data.title,
+      details: typeof mod !== 'string' && mod.description ? mod.description : data.details,
       mathEquation: data.mathEquation,
       battleName: data.battleName,
       aiExplanation: null,
       isLibrary: true,
+      wikipediaQuery: typeof mod !== 'string' ? mod.wikipediaQuery : undefined,
     });
-    setActiveTab('scanner');
+    // Keep them on the 'index' tab so back button works correctly
     incrementLessons();
+  };
+
+  const handleTabChange = (tab: AppTab) => {
+    if (tab !== activeTab) {
+      setScanResult(null);
+      stop();
+      setActiveTab(tab);
+    }
   };
 
   // Also usable from bookmarks
   const handleLaunchARFromBookmark = (subject: PageType) => {
     handleSelectSubjectOffline(subject);
+    setActiveTab('scanner'); // Jump to scanner from bookmarks
   };
 
   const handleLanguageChange = (newLang: Language) => { setLanguage(newLang); stop(); };
@@ -95,7 +116,7 @@ function App() {
 
       <Sidebar
         activeTab={activeTab}
-        setActiveTab={setActiveTab}
+        setActiveTab={handleTabChange}
         mobileOpen={mobileMenuOpen}
         setMobileOpen={setMobileMenuOpen}
         isCollapsed={sidebarCollapsed}
@@ -111,7 +132,7 @@ function App() {
           setVoiceEnabled={setVoiceEnabled}
           stopVoice={stop}
           onMenuClick={() => setMobileMenuOpen(true)}
-          setActiveTab={(tab) => setActiveTab(tab as AppTab)}
+          setActiveTab={handleTabChange}
         />
 
         <div className="content-scroll">
@@ -146,7 +167,7 @@ function App() {
               {scanResult && (activeTab === 'scanner' || activeTab === 'index') ? (
                 <ARContainer
                   pageType={scanResult.pageType}
-                  confidence={scanResult.confidence}
+                  
                   extractedInfo={scanResult}
                   language={language}
                   aiExplanation={scanResult.aiExplanation}
@@ -164,7 +185,13 @@ function App() {
                     />
                   )}
                   {activeTab === 'index' && (
-                    <OfflineIndex onSelectSubject={handleSelectSubjectOffline} />
+                    <OfflineIndex 
+                      onSelectSubject={handleSelectSubjectOffline} 
+                      selectedStandardId={libraryStandardId}
+                      setSelectedStandardId={setLibraryStandardId}
+                      selectedSubjectId={librarySubjectId}
+                      setSelectedSubjectId={setLibrarySubjectId}
+                    />
                   )}
                   {activeTab === 'profile' && <Profile />}
                   {activeTab === 'progress' && <ProgressTracker />}

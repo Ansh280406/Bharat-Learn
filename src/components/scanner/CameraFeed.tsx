@@ -2,6 +2,7 @@ import React, { useRef, useState, useEffect } from 'react';
 import { Camera, RefreshCw, AlertCircle, Eye, Zap, RotateCcw, Clock, BookOpen, ImageUp } from 'lucide-react';
 import { createWorker } from 'tesseract.js';
 import type { PageType } from '../../types';
+import { useAuth } from '../../context/AuthContext';
 import { RecentScans } from './RecentScans';
 import { ARLibrary } from './ARLibrary';
 
@@ -11,15 +12,15 @@ interface CameraFeedProps {
   setIsScanning: (scanning: boolean) => void;
 }
 
-const SANDBOX_ITEMS: { type: PageType; emoji: string; label: string; color: string; border: string }[] = [
-  { type: 'physics',     emoji: '🌈',  label: 'Physics Lab',    color: '#8b5cf6', border: 'rgba(139,92,246,0.25)'  },
-  { type: 'chemistry',   emoji: '🧪',  label: 'Chemistry Lab',  color: '#14b8a6', border: 'rgba(20,184,166,0.25)'  },
-  { type: 'heart',       emoji: '❤️',  label: 'Heart Biology',  color: '#f43f5e', border: 'rgba(244,63,94,0.25)'   },
-  { type: 'math_3d',     emoji: '🧊',  label: '3D Geometry',    color: '#0ea5e9', border: 'rgba(14,165,233,0.25)'  },
-  { type: 'math',        emoji: '📐',  label: 'Math Solver',    color: '#10b981', border: 'rgba(16,185,129,0.25)'  },
-  { type: 'history',     emoji: '⚔️',  label: 'Battle Map',     color: '#f59e0b', border: 'rgba(245,158,11,0.25)'  },
-  { type: 'water_cycle', emoji: '💧',  label: 'Water Cycle',    color: '#0ea5e9', border: 'rgba(14,165,233,0.25)'  },
-  { type: 'unknown',     emoji: '🤖',  label: 'Unknown AI Scan',color: '#6366f1', border: 'rgba(99,102,241,0.25)'  },
+const SANDBOX_ITEMS: { mockKey: PageType; emoji: string; label: string; color: string; border: string }[] = [
+  { mockKey: 'physics',     emoji: '🌈',  label: 'Physics Lab',    color: '#8b5cf6', border: 'rgba(139,92,246,0.25)'  },
+  { mockKey: 'chemistry',   emoji: '🧪',  label: 'Chemistry Lab',  color: '#14b8a6', border: 'rgba(20,184,166,0.25)'  },
+  { mockKey: 'heart',       emoji: '❤️',  label: 'Heart Biology',  color: '#f43f5e', border: 'rgba(244,63,94,0.25)'   },
+  { mockKey: 'math_3d',     emoji: '🧊',  label: '3D Geometry',    color: '#0ea5e9', border: 'rgba(14,165,233,0.25)'  },
+  { mockKey: 'math',        emoji: '📐',  label: 'Math Solver',    color: '#10b981', border: 'rgba(16,185,129,0.25)'  },
+  { mockKey: 'history',     emoji: '⚔️',  label: 'Battle Map',     color: '#f59e0b', border: 'rgba(245,158,11,0.25)'  },
+  { mockKey: 'water_cycle', emoji: '💧',  label: 'Water Cycle',    color: '#0ea5e9', border: 'rgba(14,165,233,0.25)'  },
+  { mockKey: 'unknown',     emoji: '🤖',  label: 'Unknown AI Scan',color: '#6366f1', border: 'rgba(99,102,241,0.25)'  },
 ];
 
 export const CameraFeed: React.FC<CameraFeedProps> = ({
@@ -28,6 +29,7 @@ export const CameraFeed: React.FC<CameraFeedProps> = ({
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { user, useCredit } = useAuth();
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [facingMode, setFacingMode] = useState<'user' | 'environment'>('environment');
@@ -127,6 +129,11 @@ export const CameraFeed: React.FC<CameraFeedProps> = ({
 
   const handleScan = async () => {
     if (!videoRef.current || !canvasRef.current) return;
+    if (user && user.credits < 10) {
+      alert("Not enough credits! Please refill your credits from your profile.");
+      return;
+    }
+    useCredit(10);
     setIsScanning(true);
 
     // ── STEP 1: Capture frame from camera ──────────────────────
@@ -146,6 +153,11 @@ export const CameraFeed: React.FC<CameraFeedProps> = ({
 
   const processImageFile = (file: File) => {
     if (!canvasRef.current || isScanning) return;
+    if (user && user.credits < 10) {
+      alert("Not enough credits! Please refill your credits from your profile.");
+      return;
+    }
+    useCredit(10);
 
     setIsScanning(true);
     setScanMessage('📸 Loading pasted/uploaded image...');
@@ -205,27 +217,32 @@ export const CameraFeed: React.FC<CameraFeedProps> = ({
     );
   };
 
-  const simulateMockScan = (type: PageType) => {
+  const simulateMockScan = (mockKey: PageType) => {
+    if (user && user.credits < 10) {
+      alert("Not enough credits! Please refill your credits from your profile.");
+      return;
+    }
+    useCredit(10);
     setIsScanning(true);
     setScanProgress(70);
-    setScanMessage(`Simulating ${type} scan...`);
+    setScanMessage(`Simulating ${mockKey} scan...`);
 
     const mockData: Record<PageType, { confidence: number; info: any }> = {
-      heart:       { confidence: 1.0, info: { title: 'Human Heart Biology', details: 'Interactive 3D model of the aorta, ventricles and blood vessels.', isLibrary: true } },
-      water_cycle: { confidence: 1.0, info: { title: 'Water Cycle Geography', details: 'Animated cloud formation, rain cycle and river flowchart.', isLibrary: true } },
+      heart:       { confidence: 1.0, info: { title: 'Human Heart Biology', details: 'Interactive 3D model of the aorta, ventricles and blood vessels.', isLibrary: true, wikipediaQuery: 'Heart', hologramLabels: [{id: 'ventricle', name: 'Left Ventricle', description: 'Pumps oxygenated blood to the body.'}, {id: 'aorta', name: 'Aorta', description: 'Main artery carrying blood away from the heart.'}] } },
+      water_cycle: { confidence: 1.0, info: { title: 'Water Cycle Geography', details: 'Animated cloud formation, rain cycle and river flowchart.', isLibrary: true, wikipediaQuery: 'Water cycle', hologramLabels: [{id: 'evap', name: 'Evaporation', description: 'Water turns to vapor.'}, {id: 'cond', name: 'Condensation', description: 'Vapor turns to liquid forming clouds.'}] } },
       math:        { confidence: 1.0, info: { title: 'Math Equation', details: 'Solve the equation step-by-step.', mathEquation: '2x + 4 = 10', isLibrary: true } },
-      math_3d:     { confidence: 1.0, info: { title: '3D Geometry', details: 'Visualize planes and vectors in 3D space.', isLibrary: true } },
+      math_3d:     { confidence: 1.0, info: { title: '3D Geometry', details: 'Visualize planes and vectors in 3D space.', isLibrary: true, wikipediaQuery: 'Platonic solid', hologramLabels: [{id: 'face', name: 'Face', description: 'Flat surface of the shape.'}] } },
       history:     { confidence: 1.0, info: { title: 'Battle of Panipat (1526)', details: 'Babur vs Ibrahim Lodi historical map.', battleName: 'Battle of Panipat (1526)', isLibrary: true } },
-      physics:     { confidence: 1.0, info: { title: 'Optics & Prisms', details: 'Practical interactive light refraction lab.', isLibrary: true } },
-      chemistry:   { confidence: 1.0, info: { title: 'Organic Mechanisms', details: 'Visualize nucleophilic attacks in 3D.', isLibrary: true } },
-      unknown:     { confidence: 1.0, info: { title: 'Unknown Page', details: 'Please point at a valid textbook diagram.', isLibrary: true } },
+      physics:     { confidence: 1.0, info: { title: 'Optics & Prisms', details: 'Practical interactive light refraction lab.', isLibrary: true, wikipediaQuery: 'Prism', hologramLabels: [{id: 'refraction', name: 'Refraction', description: 'Light bending through the prism.'}] } },
+      chemistry:   { confidence: 1.0, info: { title: 'Organic Mechanisms', details: 'Visualize nucleophilic attacks in 3D.', isLibrary: true, wikipediaQuery: 'Methane', hologramLabels: [{id: 'carbon', name: 'Carbon Atom', description: 'Central atom forming 4 bonds.'}] } },
+      unknown:     { confidence: 1.0, info: { title: 'Stomach Anatomy', details: 'Educational AR overlay for stomach parts.', isLibrary: true, wikipediaQuery: 'Stomach', hologramLabels: [{id: 'cardia', name: 'Cardia', description: 'Where food enters from the esophagus.'}, {id: 'fundus', name: 'Fundus', description: 'Upper part of the stomach.'}, {id: 'pylorus', name: 'Pylorus', description: 'Valve that connects to the small intestine.'}] } },
     };
 
     setTimeout(() => {
       setScanProgress(100);
-      const result = mockData[type];
+      const result = mockData[mockKey];
       const explanation = `Sandbox simulation of the "${result.info.title}" module. Experience the interactive AR layer above.`;
-      onScanComplete(type, result.confidence, result.info, explanation);
+      onScanComplete(mockKey, result.confidence, result.info, explanation);
       setIsScanning(false);
       setScanProgress(0);
       setScanMessage('Scan successful! 🎉');
@@ -400,11 +417,9 @@ export const CameraFeed: React.FC<CameraFeedProps> = ({
                 style={{
                   padding: '12px 24px', borderRadius: '999px',
                   fontSize: '15px', fontWeight: '800',
-                  background: 'rgba(255,255,255,0.1)',
-                  border: '1px solid rgba(255,255,255,0.2)',
-                  color: 'white',
                   opacity: isScanning ? 0.7 : 1,
                   transition: 'all 0.3s ease',
+                  border: '1px solid var(--glass-border-bright)',
                 }}
               >
                 <ImageUp size={17} /> Upload
@@ -413,6 +428,15 @@ export const CameraFeed: React.FC<CameraFeedProps> = ({
           </>
         )}
       </div>
+
+      {/* Paste hint (Always visible) */}
+      {!isScanning && (
+        <div style={{ textAlign: 'center', marginTop: '12px' }}>
+          <p style={{ color: 'var(--text-primary)', opacity: 0.85, fontSize: '13px', margin: 0, fontWeight: 500 }}>
+            💡 Tip: You can also press <kbd style={{ background: 'var(--bg-elevated)', color: 'var(--text-primary)', padding: '3px 7px', borderRadius: '4px', border: '1px solid var(--glass-border-bright)', fontSize: '11px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>Ctrl + V</kbd> to paste an image directly
+          </p>
+        </div>
+      )}
 
       {/* Hidden elements */}
       <canvas ref={canvasRef} style={{ display: 'none' }} />
@@ -427,8 +451,7 @@ export const CameraFeed: React.FC<CameraFeedProps> = ({
       {/* ── SANDBOX SIMULATOR ── */}
       <div className="glass-card" style={{
         padding: '20px 22px',
-        border: '1px solid rgba(99,102,241,0.15)',
-        background: 'rgba(7,14,28,0.75)',
+        border: '1px solid var(--glass-border-bright)',
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
           <div style={{
@@ -459,9 +482,9 @@ export const CameraFeed: React.FC<CameraFeedProps> = ({
         }}>
           {SANDBOX_ITEMS.map(item => (
             <button
-              key={item.type}
-              id={`sandbox-${item.type}`}
-              onClick={() => simulateMockScan(item.type)}
+              key={item.mockKey}
+              id={`sandbox-${item.mockKey}`}
+              onClick={() => simulateMockScan(item.mockKey)}
               className="glass-btn ghost"
               style={{
                 padding: '11px 14px',
@@ -470,18 +493,17 @@ export const CameraFeed: React.FC<CameraFeedProps> = ({
                 fontSize: '13px',
                 gap: '8px',
                 justifyContent: 'flex-start',
-                background: `${item.color}08`,
                 transition: 'all 0.25s ease',
               }}
               onMouseEnter={e => {
-                e.currentTarget.style.background = `${item.color}18`;
                 e.currentTarget.style.borderColor = item.color;
                 e.currentTarget.style.transform = 'translateY(-2px)';
+                e.currentTarget.style.boxShadow = `0 4px 12px ${item.color}30`;
               }}
               onMouseLeave={e => {
-                e.currentTarget.style.background = `${item.color}08`;
                 e.currentTarget.style.borderColor = item.border;
                 e.currentTarget.style.transform = 'none';
+                e.currentTarget.style.boxShadow = 'none';
               }}
             >
               <span style={{ fontSize: '18px' }}>{item.emoji}</span>

@@ -895,8 +895,7 @@ a { color: inherit; text-decoration: none; }
 .tab-btn {
   flex: 1; display: flex; align-items: center; justify-content: center; gap: 7px;
   padding: 10px 18px; border-radius: var(--radius-full);
-  border: none; background: transparent;
-  color: var(--text-secondary);
+  border: none; background: transparent; color: var(--text-secondary);
   font-family: var(--font-body); font-weight: 600; font-size: 13px;
   cursor: pointer; transition: all 0.28s cubic-bezier(0.4,0,0.2,1);
   white-space: nowrap;
@@ -911,4 +910,102 @@ a { color: inherit; text-decoration: none; }
 }
 .tab-btn:not(.active):not(.active-secondary):hover {
   background: var(--btn-bg); color: var(--text-primary);
+}
+
+/* ── TABLES ── */
+table {
+  width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 14px;
+}
+th, td {
+  padding: 12px 16px; border-bottom: 1px solid var(--glass-border); text-align: left;
+}
+th {
+  background: var(--bg-elevated); color: var(--text-primary); font-weight: 700;
+}
+tbody tr:hover {
+  background: var(--btn-bg);
+}
+
+/* ── AR SIMULATION ANIMATIONS ── */
+@keyframes orbit-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+.ar-orbit {
+  transform-origin: 250px 170px;
+  animation: orbit-spin 4s linear infinite;
+}
+.ar-orbit-reverse {
+  transform-origin: 250px 170px;
+  animation: orbit-spin 5s linear infinite reverse;
+}
+.ar-orbit-fast {
+  transform-origin: 250px 170px;
+  animation: orbit-spin 3s linear infinite;
+}
+
+@keyframes pulse-beat {
+  0% { transform: scale(1); }
+  15% { transform: scale(1.05); }
+  30% { transform: scale(1); }
+  45% { transform: scale(1.03); }
+  100% { transform: scale(1); }
+}
+.ar-heart-beat {
+  transform-origin: 250px 160px;
+  animation: pulse-beat 1s ease-in-out infinite;
+}
+
+@keyframes pulse-glow {
+  0% { opacity: 0.6; filter: brightness(1); }
+  50% { opacity: 1; filter: brightness(1.3); }
+  100% { opacity: 0.6; filter: brightness(1); }
+}
+.ar-pulse {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+@keyframes dash-flow {
+  from { stroke-dashoffset: 20; }
+  to { stroke-dashoffset: 0; }
+}
+.ar-flow {
+  animation: dash-flow 1s linear infinite;
+}
+.ar-flow-fast {
+  animation: dash-flow 0.5s linear infinite;
+}
+
+@keyframes float-up {
+  0% { transform: translateY(0); opacity: 0; }
+  20% { opacity: 1; }
+  80% { opacity: 1; }
+  100% { transform: translateY(-40px); opacity: 0; }
+}
+.ar-float {
+  animation: float-up 3s ease-in infinite;
+}
+
+@keyframes slide-right {
+  0% { transform: translateX(0); opacity: 0; }
+  20% { opacity: 1; }
+  80% { opacity: 1; }
+  100% { transform: translateX(40px); opacity: 0; }
+}
+.ar-slide-right {
+  animation: slide-right 2s linear infinite;
+}
+
+/* ── TABLES ── */
+table {
+  width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 14px;
+}
+th, td {
+  padding: 12px 16px; border-bottom: 1px solid var(--glass-border); text-align: left;
+}
+th {
+  background: var(--bg-elevated); color: var(--text-primary); font-weight: 700;
+}
+tbody tr:hover {
+  background: var(--btn-bg);
 }

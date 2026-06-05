@@ -1,5 +1,5 @@
 import React from 'react';
-import { Camera, BookOpen, User, Settings, Bookmark, TrendingUp, FileText, PanelLeftClose, PanelLeftOpen, ShieldCheck } from 'lucide-react';
+import { Camera, BookOpen, User, Bookmark, TrendingUp, FileText, PanelLeftClose, PanelLeftOpen, ShieldCheck } from 'lucide-react';
 
 export type AppTab = 'scanner' | 'index' | 'profile' | 'progress' | 'bookmarks' | 'notes';
 

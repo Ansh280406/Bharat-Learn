@@ -97,7 +97,7 @@ export const RecentScans: React.FC<RecentScansProps> = ({ onRelaunch, refreshSig
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-      {history.map(entry => {
+      {history.slice(0, 4).map(entry => {
         const meta = PAGE_TYPE_META[entry.page_type] || PAGE_TYPE_META.unknown;
         return (
           <button

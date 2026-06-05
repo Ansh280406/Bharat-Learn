@@ -6,7 +6,7 @@ import './index.css';
 import App from './App.tsx';
 import { AuthProvider } from './context/AuthContext';
 
-function ErrorFallback({ error, resetErrorBoundary }: { error: Error, resetErrorBoundary: () => void }) {
+function ErrorFallback({ error, resetErrorBoundary }: { error: any, resetErrorBoundary: () => void }) {
   return (
     <div role="alert" style={{ padding: '20px', color: 'white', background: 'var(--danger)', borderRadius: '12px', margin: '20px', textAlign: 'center' }}>
       <h2>Something went wrong in the AR viewer:</h2>
