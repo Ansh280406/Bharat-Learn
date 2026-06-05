@@ -1,94 +1,141 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, Suspense, useMemo } from 'react';
 import type { Language } from '../../types';
 import { Sun, BookOpen } from 'lucide-react';
-import { HologramViewer } from '../three/HologramViewer';
+import { Canvas, useFrame } from '@react-three/fiber';
+import * as THREE from 'three';
+import {
+  PrismMesh,
+  LightBeam,
+  ARLighting,
+  ShadowCatcherPlane,
+} from '../three/VolumetricScenes';
+import { useRef } from 'react';
 
 interface PhysicsOverlayProps {
   language: Language;
   onSpeak: (text: string) => void;
 }
 
+// ─── Spectrum Beams Component ─────────────────────────────────────────
+// Renders the ROYGBV dispersed light beams exiting the prism
+function SpectrumBeams({ angle }: { angle: number }) {
+  const colors = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6', '#8b5cf6'];
+
+  const beams = useMemo(() => {
+    const rad = (angle * Math.PI) / 180;
+    return colors.map((color, idx) => {
+      const spread = (idx - 2.5) * 4;
+      const outAngle = rad * 0.3 + spread * (Math.PI / 180);
+      const exitX = 0.6;
+      const exitY = -0.1 + idx * 0.08;
+      const endX = exitX + Math.cos(outAngle) * 4;
+      const endY = exitY + Math.sin(outAngle) * 1.5;
+      return {
+        color,
+        start: [exitX, exitY, 0] as [number, number, number],
+        end: [endX, endY, 0] as [number, number, number],
+      };
+    });
+  }, [angle]);
+
+  return (
+    <>
+      {beams.map((beam, i) => (
+        <LightBeam
+          key={i}
+          start={beam.start}
+          end={beam.end}
+          color={beam.color}
+          radius={0.025}
+          opacity={0.9}
+        />
+      ))}
+    </>
+  );
+}
+
+// ─── Incoming White Light Beam ────────────────────────────────────────
+function IncomingBeam({ angle }: { angle: number }) {
+  const beam = useMemo(() => {
+    const rad = (angle * Math.PI) / 180;
+    const startX = -4 * Math.cos(rad);
+    const startY = 4 * Math.sin(rad) * 0.3;
+    return {
+      start: [startX, startY, 0] as [number, number, number],
+      end: [-0.3, 0.1, 0] as [number, number, number],
+    };
+  }, [angle]);
+
+  return (
+    <LightBeam
+      start={beam.start}
+      end={beam.end}
+      color="#ffffff"
+      radius={0.045}
+      opacity={0.95}
+    />
+  );
+}
+
+// ─── Glow Sprite at refraction points ────────────────────────────────
+function GlowPoint({ position, color }: { position: [number, number, number]; color: string }) {
+  const meshRef = useRef<THREE.Mesh>(null!);
+
+  useFrame(({ clock }) => {
+    if (meshRef.current) {
+      const pulse = 0.8 + Math.sin(clock.getElapsedTime() * 3) * 0.2;
+      meshRef.current.scale.setScalar(pulse);
+    }
+  });
+
+  return (
+    <mesh ref={meshRef} position={position}>
+      <sphereGeometry args={[0.12, 16, 16]} />
+      <meshBasicMaterial
+        color={color}
+        transparent
+        opacity={0.5}
+        depthWrite={false}
+        blending={THREE.AdditiveBlending}
+      />
+    </mesh>
+  );
+}
+
+// ─── 3D Prism Scene ──────────────────────────────────────────────────
+function PrismScene({ angle }: { angle: number }) {
+  return (
+    <>
+      {/* AR Lighting */}
+      <ARLighting sunIntensity={0.8} sunPosition={[3, 6, 4]} ambientIntensity={0.2} />
+      <pointLight position={[-3, 2, 2]} intensity={0.6} color="#ffffff" distance={12} />
+
+      {/* Shadow catcher */}
+      <ShadowCatcherPlane position={[0, -2.5, 0]} size={10} />
+
+      {/* Dark fog for depth */}
+      <fog attach="fog" args={['#050510', 8, 18]} />
+
+      {/* Glass prism — MeshPhysicalMaterial with transmission */}
+      <PrismMesh position={[0, 0, -0.4]} scale={0.9} rotation={[0, 0, 0]} />
+
+      {/* Incoming white light beam */}
+      <IncomingBeam angle={angle} />
+
+      {/* Glow at entry point */}
+      <GlowPoint position={[-0.3, 0.1, 0]} color="#ffffff" />
+
+      {/* Glow at exit point */}
+      <GlowPoint position={[0.6, -0.1, 0]} color="#a78bfa" />
+
+      {/* Dispersed spectrum beams */}
+      <SpectrumBeams angle={angle} />
+    </>
+  );
+}
+
 export const PhysicsOverlay: React.FC<PhysicsOverlayProps> = ({ language, onSpeak }) => {
   const [angle, setAngle] = useState(30);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    let animationId: number;
-
-    const draw = () => {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-      const cx = canvas.width / 2;
-      const cy = canvas.height / 2;
-
-      // Draw Prism (Triangle)
-      ctx.beginPath();
-      ctx.moveTo(cx, cy - 80);
-      ctx.lineTo(cx - 90, cy + 80);
-      ctx.lineTo(cx + 90, cy + 80);
-      ctx.closePath();
-      
-      const gradient = ctx.createLinearGradient(cx - 90, cy - 80, cx + 90, cy + 80);
-      gradient.addColorStop(0, 'rgba(255, 255, 255, 0.4)');
-      gradient.addColorStop(1, 'rgba(14, 165, 233, 0.1)');
-      ctx.fillStyle = gradient;
-      ctx.fill();
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)';
-      ctx.lineWidth = 2;
-      ctx.stroke();
-
-      // Draw incoming white light
-      const rad = (angle * Math.PI) / 180;
-      const startX = cx - 150 * Math.cos(rad);
-      const startY = cy - 150 * Math.sin(rad);
-      
-      const hitX = cx - 40;
-      const hitY = cy;
-
-      ctx.beginPath();
-      ctx.moveTo(startX, startY);
-      ctx.lineTo(hitX, hitY);
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)';
-      ctx.lineWidth = 4;
-      ctx.setLineDash([5, 5]);
-      ctx.stroke();
-      ctx.setLineDash([]);
-
-      // Dispersion (Spectrum)
-      const colors = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6', '#8b5cf6'];
-      colors.forEach((color, idx) => {
-        const spread = (idx - 2.5) * 5;
-        const outRad = rad - Math.PI / 4 + spread * (Math.PI / 180);
-        
-        ctx.beginPath();
-        ctx.moveTo(hitX + 80, hitY + 20 + idx * 5); // Exit point on right side
-        ctx.lineTo(cx + 200 * Math.cos(outRad), cy + 200 * Math.sin(outRad));
-        ctx.strokeStyle = color;
-        ctx.lineWidth = 3;
-        ctx.stroke();
-      });
-      
-      // Inside prism rays
-      ctx.beginPath();
-      ctx.moveTo(hitX, hitY);
-      ctx.lineTo(hitX + 80, hitY + 20); // Top of spectrum
-      ctx.moveTo(hitX, hitY);
-      ctx.lineTo(hitX + 80, hitY + 45); // Bottom of spectrum
-      ctx.fillStyle = 'rgba(255,255,255,0.1)';
-      ctx.fill();
-
-      animationId = requestAnimationFrame(draw);
-    };
-
-    draw();
-
-    return () => cancelAnimationFrame(animationId);
-  }, [angle]);
 
   const handleAngleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setAngle(Number(e.target.value));
@@ -105,30 +152,21 @@ export const PhysicsOverlay: React.FC<PhysicsOverlayProps> = ({ language, onSpea
 
   return (
     <div style={{ position: 'absolute', inset: 0, borderRadius: '16px', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-      {/* 3D Hologram Background — Prism model */}
-      <HologramViewer
-        modelUrl="/models/primary_ion_drive.glb"
-        scale={0.75}
-        hologramColor="#8b5cf6"
-        autoRotate={true}
-        rotateSpeed={0.4}
-        enableOrbitControls={false}
-        loadingLabel="Loading Prism Hologram..."
-        style={{ opacity: 0.6 }}
-      />
+      {/* 3D Prism Scene */}
+      <div style={{ position: 'absolute', inset: 0, zIndex: 1 }}>
+        <Canvas
+          camera={{ position: [0, 0.5, 5], fov: 45 }}
+          shadows
+          gl={{ antialias: true, alpha: true, powerPreference: 'high-performance' }}
+          style={{ background: 'linear-gradient(180deg, #050510 0%, #0a0a20 100%)' }}
+        >
+          <Suspense fallback={null}>
+            <PrismScene angle={angle} />
+          </Suspense>
+        </Canvas>
+      </div>
 
-      {/* 2D Canvas overlay for light simulation */}
-      <canvas 
-        ref={canvasRef} 
-        width={800} 
-        height={400} 
-        style={{ 
-          width: '100%', height: '100%', objectFit: 'contain',
-          position: 'absolute', inset: 0, zIndex: 5,
-          background: 'rgba(0,0,0,0.3)',
-        }} 
-      />
-      
+      {/* Bottom Controls */}
       <div style={{
         position: 'absolute', bottom: '20px', left: '50%', transform: 'translateX(-50%)',
         background: 'rgba(7,14,28,0.85)', padding: '16px 24px', borderRadius: '16px',
@@ -144,15 +182,15 @@ export const PhysicsOverlay: React.FC<PhysicsOverlayProps> = ({ language, onSpea
             <BookOpen size={14} /> Explain
           </button>
         </div>
-        
-        <input 
-          type="range" 
-          min="10" max="80" 
-          value={angle} 
+
+        <input
+          type="range"
+          min="10" max="80"
+          value={angle}
           onChange={handleAngleChange}
           style={{ width: '100%', accentColor: 'var(--saffron)' }}
         />
-        
+
         <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '8px', fontSize: '11px', color: 'var(--text-muted)' }}>
            <span>Shallow</span>
            <span>Steep</span>

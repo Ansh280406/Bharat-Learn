@@ -1,7 +1,8 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, Suspense } from 'react';
 import type { Language } from '../../types';
 import { ScanLine, Volume2, RefreshCw } from 'lucide-react';
 import { HologramViewer } from '../three/HologramViewer';
+import { HolographicRing } from '../three/VolumetricScenes';
 
 interface HologramLabel {
   id: string;
@@ -68,7 +69,7 @@ export const DynamicAIOverlay: React.FC<DynamicAIOverlayProps> = ({
       overflow: 'hidden',
     }}>
 
-      {/* 3D Hologram Background — always visible as ambient */}
+      {/* 3D Hologram Background with holographic rings */}
       <HologramViewer
         modelUrl="/models/robot.glb"
         scale={45.0}
@@ -79,7 +80,9 @@ export const DynamicAIOverlay: React.FC<DynamicAIOverlayProps> = ({
         loadingLabel="Generating AI Hologram..."
         useFallback={false}
         style={{ opacity: imageUrl && !imageError ? 0.3 : 0.8 }}
-      />
+      >
+        {/* Holographic rings rendered inside the Canvas */}
+      </HologramViewer>
 
       {/* Scanning Grid */}
       <div style={{

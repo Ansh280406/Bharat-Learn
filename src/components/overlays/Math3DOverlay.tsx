@@ -1,7 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, Suspense, useRef, useMemo } from 'react';
 import type { Language } from '../../types';
 import { Volume2, Box, RotateCw } from 'lucide-react';
-import { HologramViewer } from '../three/HologramViewer';
+import { Canvas, useFrame } from '@react-three/fiber';
+import { Html, OrbitControls, Float } from '@react-three/drei';
+import * as THREE from 'three';
+import { ARLighting, ShadowCatcherPlane } from '../three/VolumetricScenes';
 
 interface Math3DOverlayProps {
   language: Language;
@@ -14,6 +17,8 @@ interface Shape3D {
   color: string;
   formula: Record<Language, string>;
   explanation: Record<Language, string>;
+  roughness: number;
+  metalness: number;
 }
 
 const SHAPES: Shape3D[] = [
@@ -21,11 +26,9 @@ const SHAPES: Shape3D[] = [
     name: 'Cube',
     emoji: '🧊',
     color: '#0ea5e9',
-    formula: {
-      en: 'V = a³ | SA = 6a²',
-      hi: 'V = a³ | SA = 6a²',
-      gu: 'V = a³ | SA = 6a²',
-    },
+    roughness: 0.2,
+    metalness: 0.6,
+    formula: { en: 'V = a³ | SA = 6a²', hi: 'V = a³ | SA = 6a²', gu: 'V = a³ | SA = 6a²' },
     explanation: {
       en: 'A Cube has 6 equal square faces, 12 edges and 8 vertices. Volume = side³. Surface Area = 6 × side². All angles are perfect right angles (90°).',
       hi: 'घन की 6 समान वर्गाकार भुजाएँ, 12 कोर और 8 शीर्ष होते हैं। आयतन = भुजा³। पृष्ठ क्षेत्रफल = 6 × भुजा²।',
@@ -36,11 +39,9 @@ const SHAPES: Shape3D[] = [
     name: 'Sphere',
     emoji: '🔵',
     color: '#8b5cf6',
-    formula: {
-      en: 'V = 4/3πr³ | SA = 4πr²',
-      hi: 'V = 4/3πr³ | SA = 4πr²',
-      gu: 'V = 4/3πr³ | SA = 4πr²',
-    },
+    roughness: 0.05,
+    metalness: 0.8,
+    formula: { en: 'V = 4/3πr³ | SA = 4πr²', hi: 'V = 4/3πr³ | SA = 4πr²', gu: 'V = 4/3πr³ | SA = 4πr²' },
     explanation: {
       en: 'A Sphere is perfectly round — every point on its surface is the same distance (radius) from the centre. Volume = 4/3 × π × r³. Surface Area = 4 × π × r².',
       hi: 'गोला पूरी तरह गोल होता है — इसकी सतह का प्रत्येक बिंदु केंद्र से समान दूरी (त्रिज्या) पर है। आयतन = 4/3 × π × r³।',
@@ -51,11 +52,9 @@ const SHAPES: Shape3D[] = [
     name: 'Cone',
     emoji: '🔺',
     color: '#f59e0b',
-    formula: {
-      en: 'V = 1/3πr²h | SA = πr(r+l)',
-      hi: 'V = 1/3πr²h | SA = πr(r+l)',
-      gu: 'V = 1/3πr²h | SA = πr(r+l)',
-    },
+    roughness: 0.4,
+    metalness: 0.3,
+    formula: { en: 'V = 1/3πr²h | SA = πr(r+l)', hi: 'V = 1/3πr²h | SA = πr(r+l)', gu: 'V = 1/3πr²h | SA = πr(r+l)' },
     explanation: {
       en: 'A Cone has a circular base that tapers to a single apex (point). Volume = 1/3 × π × r² × h. Slant height l = √(r²+h²). Used in ice cream cones and traffic cones!',
       hi: 'शंकु का एक वृत्तीय आधार होता है जो एक शीर्ष बिंदु पर सिकुड़ता है। आयतन = 1/3 × π × r² × h। तिरछी ऊँचाई l = √(r²+h²)।',
@@ -66,11 +65,9 @@ const SHAPES: Shape3D[] = [
     name: 'Torus',
     emoji: '🍩',
     color: '#10b981',
-    formula: {
-      en: 'V = 2π²Rr² | SA = 4π²Rr',
-      hi: 'V = 2π²Rr² | SA = 4π²Rr',
-      gu: 'V = 2π²Rr² | SA = 4π²Rr',
-    },
+    roughness: 0.1,
+    metalness: 0.7,
+    formula: { en: 'V = 2π²Rr² | SA = 4π²Rr', hi: 'V = 2π²Rr² | SA = 4π²Rr', gu: 'V = 2π²Rr² | SA = 4π²Rr' },
     explanation: {
       en: 'A Torus is a donut-shaped 3D solid. It is formed by revolving a circle around an axis. Volume = 2π²Rr². It has no faces, edges, or vertices — it is a smooth curved surface.',
       hi: 'टोरस एक डोनट के आकार का 3D ठोस है। यह एक अक्ष के चारों ओर एक वृत्त को घुमाने से बनता है। आयतन = 2π²Rr²।',
@@ -78,6 +75,126 @@ const SHAPES: Shape3D[] = [
     },
   },
 ];
+
+// ─── PBR 3D Shape with dimension annotations ─────────────────────────
+function PBRShape({
+  shapeName,
+  color,
+  roughness,
+  metalness,
+  autoRotate,
+}: {
+  shapeName: string;
+  color: string;
+  roughness: number;
+  metalness: number;
+  autoRotate: boolean;
+}) {
+  const groupRef = useRef<THREE.Group>(null!);
+  const hColor = new THREE.Color(color);
+
+  useFrame(({ clock }) => {
+    if (groupRef.current && autoRotate) {
+      groupRef.current.rotation.y = clock.getElapsedTime() * 0.5;
+    }
+    if (groupRef.current) {
+      groupRef.current.rotation.x = Math.sin(clock.getElapsedTime() * 0.3) * 0.1;
+      const pulse = 1 + Math.sin(clock.getElapsedTime() * 2) * 0.02;
+      groupRef.current.scale.setScalar(pulse);
+    }
+  });
+
+  const renderGeometry = () => {
+    switch (shapeName) {
+      case 'cube':
+        return <boxGeometry args={[1.6, 1.6, 1.6, 4, 4, 4]} />;
+      case 'sphere':
+        return <sphereGeometry args={[1.1, 48, 48]} />;
+      case 'cone':
+        return <coneGeometry args={[1.0, 1.9, 48]} />;
+      case 'torus':
+        return <torusGeometry args={[0.8, 0.3, 24, 100]} />;
+      default:
+        return <icosahedronGeometry args={[1.5, 2]} />;
+    }
+  };
+
+  const renderWireframe = () => {
+    switch (shapeName) {
+      case 'cube':
+        return <boxGeometry args={[1.64, 1.64, 1.64]} />;
+      case 'sphere':
+        return <sphereGeometry args={[1.14, 24, 24]} />;
+      case 'cone':
+        return <coneGeometry args={[1.04, 1.94, 24]} />;
+      case 'torus':
+        return <torusGeometry args={[0.82, 0.32, 12, 48]} />;
+      default:
+        return <icosahedronGeometry args={[1.54, 1]} />;
+    }
+  };
+
+  return (
+    <group ref={groupRef}>
+      {/* Main PBR shape */}
+      <mesh castShadow receiveShadow>
+        {renderGeometry()}
+        <meshStandardMaterial
+          color={hColor}
+          roughness={roughness}
+          metalness={metalness}
+          emissive={hColor}
+          emissiveIntensity={0.15}
+          envMapIntensity={1.2}
+        />
+      </mesh>
+      {/* Subtle wireframe overlay */}
+      <mesh>
+        {renderWireframe()}
+        <meshBasicMaterial
+          color={hColor}
+          wireframe
+          transparent
+          opacity={0.12}
+          depthWrite={false}
+        />
+      </mesh>
+    </group>
+  );
+}
+
+// ─── 3D Geometry Scene ───────────────────────────────────────────────
+function GeometryScene({ shapeIdx, autoRotate }: { shapeIdx: number; autoRotate: boolean }) {
+  const shape = SHAPES[shapeIdx];
+  return (
+    <>
+      <ARLighting sunIntensity={1.5} sunPosition={[5, 8, 5]} ambientIntensity={0.4} />
+      <pointLight position={[0, 0, 3]} intensity={0.6} color={shape.color} distance={10} />
+      <ShadowCatcherPlane position={[0, -2.2, 0]} />
+      <fog attach="fog" args={['#020509', 8, 20]} />
+
+      <OrbitControls
+        enablePan={false}
+        enableZoom={true}
+        minDistance={3}
+        maxDistance={10}
+        autoRotate={false}
+        maxPolarAngle={Math.PI * 0.75}
+        minPolarAngle={Math.PI * 0.25}
+      />
+
+      <Float speed={2} rotationIntensity={0.08} floatIntensity={0.4} floatingRange={[-0.08, 0.08]}>
+        <PBRShape
+          shapeName={shape.name.toLowerCase()}
+          color={shape.color}
+          roughness={shape.roughness}
+          metalness={shape.metalness}
+          autoRotate={autoRotate}
+        />
+      </Float>
+    </>
+  );
+}
 
 export const Math3DOverlay: React.FC<Math3DOverlayProps> = ({ language, onSpeak }) => {
   const [shapeIdx, setShapeIdx] = useState(0);
@@ -87,18 +204,19 @@ export const Math3DOverlay: React.FC<Math3DOverlayProps> = ({ language, onSpeak 
 
   return (
     <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', padding: '16px' }}>
-      {/* 3D Hologram Canvas */}
-      <HologramViewer
-        modelUrl="/models/robot.glb"
-        scale={1.0}
-        hologramColor={shape.color}
-        autoRotate={autoRotate}
-        rotateSpeed={0.5}
-        enableOrbitControls={true}
-        loadingLabel="Loading 3D Geometry Hologram..."
-        useFallback={true}
-        proceduralShape={shape.name.toLowerCase() as any}
-      />
+      {/* 3D Canvas */}
+      <div style={{ position: 'absolute', inset: 0, zIndex: 1 }}>
+        <Canvas
+          camera={{ position: [0, 1, 5], fov: 45 }}
+          shadows
+          gl={{ antialias: true, alpha: true, powerPreference: 'high-performance' }}
+          style={{ background: 'transparent' }}
+        >
+          <Suspense fallback={null}>
+            <GeometryScene shapeIdx={shapeIdx} autoRotate={autoRotate} />
+          </Suspense>
+        </Canvas>
+      </div>
 
       {/* Top HUD */}
       <div style={{ position: 'relative', zIndex: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>

@@ -1,7 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense, useRef, useMemo } from 'react';
 import type { Language } from '../../types';
 import { Volume2, Map } from 'lucide-react';
-import { HologramViewer } from '../three/HologramViewer';
+import { Canvas, useFrame } from '@react-three/fiber';
+import * as THREE from 'three';
+import { ARLighting, ShadowCatcherPlane, WaterBody } from '../three/VolumetricScenes';
 
 interface BattleMapOverlayProps {
   language: Language;
@@ -13,7 +15,282 @@ interface BattlePhase {
   year: string;
   phaseTitle: Record<Language, string>;
   description: Record<Language, string>;
-  elements: React.ReactNode;
+}
+
+// ─── Terrain for battlefield ─────────────────────────────────────────
+function BattlefieldTerrain() {
+  const geometry = useMemo(() => {
+    const geo = new THREE.PlaneGeometry(12, 8, 48, 48);
+    const pos = geo.attributes.position;
+    const colors = new Float32Array(pos.count * 3);
+    const baseColor = new THREE.Color('#3d2b1f');
+    const grassColor = new THREE.Color('#2d4a2d');
+
+    for (let i = 0; i < pos.count; i++) {
+      const x = pos.getX(i);
+      const y = pos.getY(i);
+      const height = (Math.sin(x * 0.5) * Math.cos(y * 0.3) * 0.15)
+        + (Math.sin(x * 1.2 + 3) * 0.08);
+      pos.setZ(i, height);
+
+      const c = new THREE.Color();
+      c.lerpColors(grassColor, baseColor, Math.random() * 0.4 + 0.3);
+      colors[i * 3] = c.r;
+      colors[i * 3 + 1] = c.g;
+      colors[i * 3 + 2] = c.b;
+    }
+    geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+    geo.computeVertexNormals();
+    return geo;
+  }, []);
+
+  return (
+    <mesh geometry={geometry} rotation={[-Math.PI / 2, 0, 0]} position={[0, -2, 0]} receiveShadow>
+      <meshStandardMaterial vertexColors roughness={0.9} metalness={0} />
+    </mesh>
+  );
+}
+
+// ─── Army Unit (small cluster of box soldiers) ───────────────────────
+function ArmyUnit({
+  position,
+  color,
+  count = 5,
+  label,
+}: {
+  position: [number, number, number];
+  color: string;
+  count?: number;
+  label?: string;
+}) {
+  const groupRef = useRef<THREE.Group>(null!);
+
+  useFrame(({ clock }) => {
+    if (groupRef.current) {
+      groupRef.current.position.y = position[1] + Math.sin(clock.getElapsedTime() * 2 + position[0]) * 0.03;
+    }
+  });
+
+  const soldiers = useMemo(() => {
+    const result: [number, number, number][] = [];
+    for (let i = 0; i < count; i++) {
+      const row = Math.floor(i / 3);
+      const col = i % 3;
+      result.push([col * 0.2 - 0.2, 0, row * 0.2 - 0.1]);
+    }
+    return result;
+  }, [count]);
+
+  return (
+    <group ref={groupRef} position={position}>
+      {soldiers.map((pos, i) => (
+        <mesh key={i} position={pos} castShadow>
+          <boxGeometry args={[0.12, 0.25, 0.1]} />
+          <meshStandardMaterial
+            color={color}
+            emissive={color}
+            emissiveIntensity={0.3}
+            roughness={0.5}
+            metalness={0.2}
+          />
+        </mesh>
+      ))}
+      {/* Flag/banner on top */}
+      <mesh position={[0, 0.3, 0]}>
+        <coneGeometry args={[0.06, 0.15, 6]} />
+        <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.5} />
+      </mesh>
+    </group>
+  );
+}
+
+// ─── Cannon with fire effect ─────────────────────────────────────────
+function Cannon({ position, firing }: { position: [number, number, number]; firing: boolean }) {
+  const fireRef = useRef<THREE.Mesh>(null!);
+
+  useFrame(({ clock }) => {
+    if (fireRef.current && firing) {
+      const pulse = Math.sin(clock.getElapsedTime() * 8) * 0.5 + 0.5;
+      fireRef.current.scale.setScalar(0.5 + pulse * 0.5);
+      (fireRef.current.material as THREE.MeshStandardMaterial).emissiveIntensity = 1 + pulse * 2;
+    }
+  });
+
+  return (
+    <group position={position}>
+      {/* Cannon barrel */}
+      <mesh rotation={[0, 0, Math.PI / 2]} castShadow>
+        <cylinderGeometry args={[0.04, 0.06, 0.4, 8]} />
+        <meshStandardMaterial color="#475569" roughness={0.3} metalness={0.8} />
+      </mesh>
+      {/* Fire effect */}
+      {firing && (
+        <mesh ref={fireRef} position={[0.3, 0, 0]}>
+          <sphereGeometry args={[0.1, 12, 12]} />
+          <meshStandardMaterial
+            color="#f59e0b"
+            emissive="#ef4444"
+            emissiveIntensity={2}
+            transparent
+            opacity={0.8}
+          />
+        </mesh>
+      )}
+    </group>
+  );
+}
+
+// ─── Cavalry Path (animated dots along curve) ─────────────────────────
+function CavalryPath({ visible }: { visible: boolean }) {
+  const pointsRef = useRef<THREE.Points>(null!);
+  const count = 20;
+
+  const curve = useMemo(() => new THREE.CatmullRomCurve3([
+    new THREE.Vector3(-3, -1.7, -2),
+    new THREE.Vector3(-1, -1.5, -3),
+    new THREE.Vector3(1.5, -1.6, -2.5),
+    new THREE.Vector3(3, -1.7, -1),
+    new THREE.Vector3(2, -1.8, 1),
+  ]), []);
+
+  const positions = useMemo(() => new Float32Array(count * 3), [count]);
+
+  useFrame(({ clock }) => {
+    if (!pointsRef.current || !visible) return;
+    const t = clock.getElapsedTime() * 0.15;
+    const pos = pointsRef.current.geometry.attributes.position.array as Float32Array;
+    for (let i = 0; i < count; i++) {
+      const param = ((t + i / count) % 1);
+      const point = curve.getPoint(param);
+      pos[i * 3] = point.x;
+      pos[i * 3 + 1] = point.y;
+      pos[i * 3 + 2] = point.z;
+    }
+    pointsRef.current.geometry.attributes.position.needsUpdate = true;
+  });
+
+  if (!visible) return null;
+
+  return (
+    <points ref={pointsRef}>
+      <bufferGeometry>
+        <bufferAttribute attach="attributes-position" args={[positions, 3]} />
+      </bufferGeometry>
+      <pointsMaterial
+        color="#06b6d4"
+        size={0.12}
+        transparent
+        opacity={0.8}
+        sizeAttenuation
+        blending={THREE.AdditiveBlending}
+        depthWrite={false}
+      />
+    </points>
+  );
+}
+
+// ─── Victory Particles ───────────────────────────────────────────────
+function VictoryParticles({ visible }: { visible: boolean }) {
+  const pointsRef = useRef<THREE.Points>(null!);
+  const count = 60;
+
+  const positions = useMemo(() => {
+    const pos = new Float32Array(count * 3);
+    for (let i = 0; i < count; i++) {
+      pos[i * 3] = (Math.random() - 0.5) * 6;
+      pos[i * 3 + 1] = -1.5 + Math.random() * 3;
+      pos[i * 3 + 2] = (Math.random() - 0.5) * 4;
+    }
+    return pos;
+  }, [count]);
+
+  useFrame((_, delta) => {
+    if (!pointsRef.current || !visible) return;
+    const pos = pointsRef.current.geometry.attributes.position.array as Float32Array;
+    for (let i = 0; i < count; i++) {
+      pos[i * 3 + 1] += delta * 0.5;
+      if (pos[i * 3 + 1] > 2) pos[i * 3 + 1] = -1.5;
+    }
+    pointsRef.current.geometry.attributes.position.needsUpdate = true;
+  });
+
+  if (!visible) return null;
+
+  return (
+    <points ref={pointsRef}>
+      <bufferGeometry>
+        <bufferAttribute attach="attributes-position" args={[positions, 3]} />
+      </bufferGeometry>
+      <pointsMaterial
+        color="#fbbf24"
+        size={0.08}
+        transparent
+        opacity={0.7}
+        sizeAttenuation
+        blending={THREE.AdditiveBlending}
+        depthWrite={false}
+      />
+    </points>
+  );
+}
+
+// ─── Battle Scene ────────────────────────────────────────────────────
+function BattleScene({ phaseIdx }: { phaseIdx: number }) {
+  return (
+    <>
+      <ARLighting sunIntensity={1.2} sunPosition={[4, 8, 3]} ambientIntensity={0.3} />
+      <ShadowCatcherPlane position={[0, -2.1, 0]} size={14} />
+      <fog attach="fog" args={['#0a0b16', 10, 20]} />
+
+      {/* Terrain */}
+      <BattlefieldTerrain />
+
+      {/* Yamuna River */}
+      <WaterBody
+        width={10}
+        depth={1.0}
+        segments={32}
+        position={[0, -1.85, 0]}
+        color="#1e3a5f"
+        opacity={0.6}
+        waveSpeed={0.8}
+        waveHeight={0.03}
+      />
+
+      {/* Mughal Army (Blue) — left side */}
+      <ArmyUnit position={[-3, -1.7, 0]} color="#3b82f6" count={6} label="Babur" />
+      <ArmyUnit position={[-3, -1.7, -1]} color="#3b82f6" count={4} />
+
+      {/* Cannons chained carts */}
+      <Cannon position={[-2.2, -1.7, 0.3]} firing={phaseIdx >= 1} />
+      <Cannon position={[-2.2, -1.7, -0.3]} firing={phaseIdx >= 1} />
+      <Cannon position={[-2.2, -1.7, -0.9]} firing={phaseIdx >= 1} />
+
+      {/* Lodi Army (Red) — right side */}
+      {phaseIdx < 3 && (
+        <>
+          <ArmyUnit position={[2.5, -1.7, 0]} color="#ef4444" count={8} label="Lodi" />
+          <ArmyUnit position={[2.5, -1.7, -1]} color="#ef4444" count={6} />
+          <ArmyUnit position={[3, -1.7, 0.5]} color="#ef4444" count={4} />
+          {/* War elephants */}
+          <mesh position={[2, -1.5, 0.8]} castShadow>
+            <sphereGeometry args={[0.2, 16, 16]} />
+            <meshStandardMaterial color="#78716c" roughness={0.7} metalness={0.1} />
+          </mesh>
+          <mesh position={[2, -1.5, -0.5]} castShadow>
+            <sphereGeometry args={[0.18, 16, 16]} />
+            <meshStandardMaterial color="#78716c" roughness={0.7} metalness={0.1} />
+          </mesh>
+        </>
+      )}
+
+      {/* Cavalry flanking path (Phase 3) */}
+      <CavalryPath visible={phaseIdx >= 2} />
+
+      {/* Victory particles (Phase 4) */}
+      <VictoryParticles visible={phaseIdx >= 3} />
+    </>
+  );
 }
 
 export const BattleMapOverlay: React.FC<BattleMapOverlayProps> = ({ language, onSpeak }) => {
@@ -32,24 +309,6 @@ export const BattleMapOverlay: React.FC<BattleMapOverlayProps> = ({ language, on
         hi: "बाबर ने तोपों की रक्षा के लिए जंजीरों से बंधी 700 बैलगाड़ियों को केंद्र में खड़ा किया। इब्राहिम लोदी ने 1,00,000 सैनिकों और विशाल युद्ध हाथियों को तैनात किया।",
         gu: "બાબરે તોપોના રક્ષણ માટે મધ્યમાં સાંકળોથી બાંધેલી ૭૦૦ ગાડીઓ ગોઠવી. ઇબ્રાહિમ લોદીએ ૧,૦૦,૦૦૦ સૈનિકો અને વિશાળ યુદ્ધ હાથીઓ તૈનાત કર્યા."
       },
-      elements: (
-        <>
-          <g fill="none" stroke="#3b82f6" strokeWidth="2">
-            <line x1="220" y1="200" x2="220" y2="280" strokeDasharray="5 3" />
-            <circle cx="210" cy="210" r="6" fill="#3b82f6" />
-            <circle cx="210" cy="240" r="6" fill="#3b82f6" />
-            <circle cx="210" cy="270" r="6" fill="#3b82f6" />
-            <text x="180" y="245" fill="#3b82f6" fontSize="10" fontWeight="bold">Babur Carts</text>
-          </g>
-          <g fill="none" stroke="#ef4444" strokeWidth="2">
-            <rect x="420" y="210" width="15" height="60" rx="3" fill="#ef4444" />
-            <circle cx="390" cy="220" r="10" fill="#ef4444" opacity="0.8" />
-            <circle cx="390" cy="260" r="10" fill="#ef4444" opacity="0.8" />
-            <text x="450" y="245" fill="#ef4444" fontSize="10" fontWeight="bold">Lodi Army</text>
-            <text x="380" y="198" fill="#ef4444" fontSize="9">Elephants</text>
-          </g>
-        </>
-      )
     },
     {
       year: "Phase 2: Lodi Charges (Midday)",
@@ -63,25 +322,6 @@ export const BattleMapOverlay: React.FC<BattleMapOverlayProps> = ({ language, on
         hi: "लोदी की सेना आगे बढ़ती है लेकिन बाबर की बारूदी तोपों की गर्जना से घबरा जाती है, जिससे हाथी डरकर पीछे की ओर भागने लगते हैं और भगदड़ मच जाती है।",
         gu: "લોદીનું લશ્કર આગળ ધસે છે પરંતુ બાબરી બારૂદી તોપોના પ્રચંડ અવાજથી ડરી જાય છે, જેના લીધે હાથીઓ ગભરાઈને પાછળ ભાગવા માંડે છે."
       },
-      elements: (
-        <>
-          <g fill="#eab308">
-            <path d="M 230 205 L 260 195 L 240 215 Z" />
-            <path d="M 230 235 L 270 235 L 240 245 Z" />
-            <path d="M 230 265 L 260 275 L 240 270 Z" />
-            <text x="260" y="180" fill="#eab308" fontSize="10" fontWeight="bold">🔥 Cannon Fire!</text>
-          </g>
-          <g fill="none" stroke="#ef4444" strokeWidth="2">
-            <circle cx="350" cy="205" r="10" fill="#ef4444" />
-            <circle cx="360" cy="265" r="10" fill="#ef4444" />
-            <path d="M 330 205 L 360 195 M 330 205 L 345 220" stroke="#ef4444" />
-            <path d="M 340 265 L 370 275 M 340 265 L 355 250" stroke="#ef4444" />
-          </g>
-          <g fill="none" stroke="#3b82f6" strokeWidth="2">
-            <line x1="220" y1="200" x2="220" y2="280" />
-          </g>
-        </>
-      )
     },
     {
       year: "Phase 3: Tulughma Encirclement",
@@ -95,24 +335,6 @@ export const BattleMapOverlay: React.FC<BattleMapOverlayProps> = ({ language, on
         hi: "बाबर ने तुलुगमा घेराव रणनीति शुरू की: तेज़ घुड़सवार सैनिक लोदी की सेना को पीछे से घेरने के लिए चारों ओर चक्कर लगाते हैं, जिससे वे पूरी तरह फंस जाते हैं।",
         gu: "બાબરે તુલુઘમા ઘેરાબંધી વ્યુહરચના શરૂ કરી: ઝડપી ઘોડેસવાર લશ્કર લોદીની સેનાને પાછળથી ઘેરવા માટે ગોળાકાર વળાંક લે છે, જેથી તેઓ સંપૂર્ણ ફસાઈ જાય છે."
       },
-      elements: (
-        <>
-          <g fill="none" stroke="#06b6d4" strokeWidth="3" strokeDasharray="5 3">
-            <path d="M 180 180 C 260 100, 420 120, 460 190" style={{ animation: 'dash 1s linear infinite' }} />
-            <path d="M 180 300 C 260 380, 420 360, 460 290" style={{ animation: 'dash 1s linear infinite' }} />
-            <polygon points="460,190 450,180 465,175" fill="#06b6d4" />
-            <polygon points="460,290 450,300 465,305" fill="#06b6d4" />
-            <text x="290" y="110" fill="#06b6d4" fontSize="10" fontWeight="bold">🐎 Cavalry Flank!</text>
-          </g>
-          <g fill="#ef4444" opacity="0.7">
-            <ellipse cx="370" cy="240" rx="30" ry="25" />
-            <text x="350" y="243" fill="#fff" fontSize="9" fontWeight="bold">Surrounded</text>
-          </g>
-          <g fill="none" stroke="#3b82f6" strokeWidth="2">
-            <line x1="220" y1="200" x2="220" y2="280" />
-          </g>
-        </>
-      )
     },
     {
       year: "Phase 4: Mughal Victory (Evening)",
@@ -126,15 +348,6 @@ export const BattleMapOverlay: React.FC<BattleMapOverlayProps> = ({ language, on
         hi: "बाबर की रणनीतिक सूझबूझ और उन्नत हथियारों के कारण लोदी की विशाल सेना हार जाती है। यह ऐतिहासिक जीत भारत में मुगल साम्राज्य की नींव रखती है।",
         gu: "બાબરની વ્યૂહાત્મક કોઠાસૂઝ અને તોપોના લીધે લોદીનું વિશાળ લશ્કર હારી જાય છે. આ ઐતિહાસિક વિજય ભારતમાં મુઘલ સામ્રાજ્યનો પાયો નાખે છે."
       },
-      elements: (
-        <>
-          <g fill="#10b981">
-            <polygon points="320,180 330,195 345,185 335,205" />
-            <polygon points="280,270 290,285 305,275 295,295" />
-            <text x="270" y="235" fill="var(--success)" fontSize="20" fontWeight="extrabold">🏆 MUGHAL VICTORY</text>
-          </g>
-        </>
-      )
     }
   ];
 
@@ -154,25 +367,27 @@ export const BattleMapOverlay: React.FC<BattleMapOverlayProps> = ({ language, on
       padding: '20px',
       background: 'radial-gradient(circle at center, transparent 30%, rgba(10, 11, 22, 0.4) 100%)',
     }}>
-      {/* 3D Hologram Background — Sword/Fortress */}
-      <HologramViewer
-        modelUrl="/models/soldier.glb"
-        scale={0.016}
-        rotation={[-Math.PI / 2, 0, 0]}
-        hologramColor="#f59e0b"
-        autoRotate={true}
-        rotateSpeed={0.4}
-        enableOrbitControls={false}
-        loadingLabel="Loading Battle Hologram..."
-        style={{ opacity: 0.35 }}
-      />
+      {/* 3D Battle Scene Canvas */}
+      <div style={{ position: 'absolute', inset: 0, zIndex: 1 }}>
+        <Canvas
+          camera={{ position: [0, 4, 6], fov: 50 }}
+          shadows
+          gl={{ antialias: true, alpha: true, powerPreference: 'high-performance' }}
+          style={{ background: 'transparent' }}
+        >
+          <Suspense fallback={null}>
+            <BattleScene phaseIdx={phaseIdx} />
+          </Suspense>
+        </Canvas>
+      </div>
 
       {/* Title HUD Header */}
       <div style={{
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
-        zIndex: 10
+        zIndex: 10,
+        position: 'relative',
       }}>
         <div style={{
           display: 'flex', alignItems: 'center', gap: '8px',
@@ -181,7 +396,7 @@ export const BattleMapOverlay: React.FC<BattleMapOverlayProps> = ({ language, on
           borderRadius: '50px', color: 'var(--accent)', fontSize: '13px', fontWeight: '700'
         }}>
           <Map size={16} />
-          <span>Interactive Battle Map</span>
+          <span>3D Battle Map</span>
         </div>
 
         <div style={{
@@ -193,29 +408,8 @@ export const BattleMapOverlay: React.FC<BattleMapOverlayProps> = ({ language, on
         </div>
       </div>
 
-      {/* Interactive Vector Map SVG Grid */}
-      <div style={{
-        position: 'relative', flex: 1,
-        display: 'flex', justifyContent: 'center', alignItems: 'center',
-        zIndex: 5,
-      }}>
-        <svg style={{
-          position: 'absolute', inset: 0, width: '100%', height: '100%',
-          background: 'radial-gradient(circle at center, rgba(19, 21, 45, 0.5) 0%, rgba(10, 11, 22, 0.8) 100%)',
-          borderRadius: '16px', border: '1px solid rgba(255,255,255,0.05)',
-          boxShadow: 'inset 0 0 20px rgba(0,0,0,0.8)'
-        }} viewBox="0 0 640 360" preserveAspectRatio="xMidYMid meet">
-          <path d="M 50,50 Q 150,70 180,150 T 250,300" fill="none" stroke="rgba(255,255,255,0.03)" strokeWidth="2" />
-          <path d="M 300,40 Q 320,180 450,220 T 580,320" fill="none" stroke="rgba(255,255,255,0.03)" strokeWidth="2" />
-          <path d="M 10,220 C 150,220 280,240 630,240" fill="none" stroke="rgba(255,255,255,0.02)" strokeWidth="1" />
-          <path d="M 0,180 C 120,160 310,260 640,150" fill="none" stroke="#3b82f6" strokeWidth="2" opacity="0.15" />
-          <text x="320" y="200" fill="#3b82f6" fontSize="10" opacity="0.25" fontStyle="italic">Yamuna River</text>
-          {activePhase.elements}
-        </svg>
-      </div>
-
       {/* Timeline Scrubber & Details */}
-      <div style={{ zIndex: 10, display: 'flex', flexDirection: 'column', gap: '12px' }}>
+      <div style={{ zIndex: 10, display: 'flex', flexDirection: 'column', gap: '12px', position: 'relative' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: 'var(--text-muted)', fontWeight: '600' }}>
             <span>Morning (08:00)</span>

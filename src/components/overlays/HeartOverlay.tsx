@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import type { Language, PartExplanation } from '../../types';
 import { Volume2, Orbit } from 'lucide-react';
 import { HologramViewer } from '../three/HologramViewer';
+import { Html } from '@react-three/drei';
 
 interface HeartOverlayProps {
   language: Language;
@@ -35,6 +36,16 @@ const explanations: Record<string, PartExplanation> = {
   }
 };
 
+// Helper to map mesh names from GLTF to explanation keys
+const mapMeshNameToKey = (meshName: string): string | null => {
+  const lower = meshName.toLowerCase();
+  if (lower.includes('aorta') || lower.includes('aortic')) return 'aorta';
+  if (lower.includes('left ventricle')) return 'left_ventricle';
+  if (lower.includes('right ventricle')) return 'right_ventricle';
+  if (lower.includes('pulmonary') || (lower.includes('valve') && lower.includes('pulmonary'))) return 'pulmonary_valve';
+  return null;
+};
+
 export const HeartOverlay: React.FC<HeartOverlayProps> = ({ language, onSpeak }) => {
   const [selectedPart, setSelectedPart] = useState<string | null>(null);
 
@@ -59,7 +70,7 @@ export const HeartOverlay: React.FC<HeartOverlayProps> = ({ language, onSpeak })
       {/* 3D Hologram Canvas */}
       <HologramViewer
         modelUrl="/models/heart.glb"
-        scale={2.2}
+        scale={4.8} // Scaled up significantly for better visibility
         rotation={[-Math.PI / 2, 0, 0]}
         hologramColor="#ef4444"
         autoRotate={true}
@@ -67,9 +78,126 @@ export const HeartOverlay: React.FC<HeartOverlayProps> = ({ language, onSpeak })
         enableOrbitControls={true}
         loadingLabel="Loading Heart Hologram..."
         onPartClick={(name) => {
-          if (explanations[name]) selectPart(name);
+          const key = mapMeshNameToKey(name);
+          if (key) selectPart(key);
         }}
-      />
+      >
+        {/* Aorta Label Pin (Yellow) */}
+        <Html position={[0.1, 0.8, 0.25]} center distanceFactor={5}>
+          <button
+            onClick={() => selectPart('aorta')}
+            className="glass-card"
+            style={{
+              pointerEvents: 'auto',
+              padding: '6px 12px',
+              borderRadius: '16px',
+              fontSize: '11px',
+              fontWeight: '700',
+              border: selectedPart === 'aorta' ? '2px solid var(--accent)' : '1px solid rgba(255,255,255,0.15)',
+              boxShadow: selectedPart === 'aorta' ? '0 0 15px var(--accent-glow)' : '0 4px 12px rgba(0,0,0,0.5)',
+              background: 'rgba(10, 11, 22, 0.85)',
+              color: selectedPart === 'aorta' ? 'var(--accent)' : '#fff',
+              cursor: 'pointer',
+              whiteSpace: 'nowrap',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              transform: selectedPart === 'aorta' ? 'scale(1.15)' : 'scale(1)',
+              transition: 'all 0.2s ease',
+            }}
+          >
+            <span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', background: '#eab308' }} />
+            Aorta
+          </button>
+        </Html>
+
+        {/* Pulmonary Valve Label Pin (Blue/Cyan) */}
+        <Html position={[-0.35, 0.45, 0.2]} center distanceFactor={5}>
+          <button
+            onClick={() => selectPart('pulmonary_valve')}
+            className="glass-card"
+            style={{
+              pointerEvents: 'auto',
+              padding: '6px 12px',
+              borderRadius: '16px',
+              fontSize: '11px',
+              fontWeight: '700',
+              border: selectedPart === 'pulmonary_valve' ? '2px solid var(--secondary)' : '1px solid rgba(255,255,255,0.15)',
+              boxShadow: selectedPart === 'pulmonary_valve' ? '0 0 15px var(--secondary-glow)' : '0 4px 12px rgba(0,0,0,0.5)',
+              background: 'rgba(10, 11, 22, 0.85)',
+              color: selectedPart === 'pulmonary_valve' ? 'var(--secondary)' : '#fff',
+              cursor: 'pointer',
+              whiteSpace: 'nowrap',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              transform: selectedPart === 'pulmonary_valve' ? 'scale(1.15)' : 'scale(1)',
+              transition: 'all 0.2s ease',
+            }}
+          >
+            <span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', background: '#38bdf8' }} />
+            Pulmonary Valve
+          </button>
+        </Html>
+
+        {/* Right Ventricle Label Pin (Crimson Red) */}
+        <Html position={[-0.35, -0.25, 0.35]} center distanceFactor={5}>
+          <button
+            onClick={() => selectPart('right_ventricle')}
+            className="glass-card"
+            style={{
+              pointerEvents: 'auto',
+              padding: '6px 12px',
+              borderRadius: '16px',
+              fontSize: '11px',
+              fontWeight: '700',
+              border: selectedPart === 'right_ventricle' ? '2px solid var(--primary)' : '1px solid rgba(255,255,255,0.15)',
+              boxShadow: selectedPart === 'right_ventricle' ? '0 0 15px var(--primary-glow)' : '0 4px 12px rgba(0,0,0,0.5)',
+              background: 'rgba(10, 11, 22, 0.85)',
+              color: selectedPart === 'right_ventricle' ? 'var(--primary)' : '#fff',
+              cursor: 'pointer',
+              whiteSpace: 'nowrap',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              transform: selectedPart === 'right_ventricle' ? 'scale(1.15)' : 'scale(1)',
+              transition: 'all 0.2s ease',
+            }}
+          >
+            <span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', background: '#9f1239' }} />
+            Right Ventricle
+          </button>
+        </Html>
+
+        {/* Left Ventricle Label Pin (Bright Rose) */}
+        <Html position={[0.4, -0.35, 0.35]} center distanceFactor={5}>
+          <button
+            onClick={() => selectPart('left_ventricle')}
+            className="glass-card"
+            style={{
+              pointerEvents: 'auto',
+              padding: '6px 12px',
+              borderRadius: '16px',
+              fontSize: '11px',
+              fontWeight: '700',
+              border: selectedPart === 'left_ventricle' ? '2px solid var(--danger)' : '1px solid rgba(255,255,255,0.15)',
+              boxShadow: selectedPart === 'left_ventricle' ? '0 0 15px var(--danger-glow)' : '0 4px 12px rgba(0,0,0,0.5)',
+              background: 'rgba(10, 11, 22, 0.85)',
+              color: selectedPart === 'left_ventricle' ? 'var(--danger)' : '#fff',
+              cursor: 'pointer',
+              whiteSpace: 'nowrap',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              transform: selectedPart === 'left_ventricle' ? 'scale(1.15)' : 'scale(1)',
+              transition: 'all 0.2s ease',
+            }}
+          >
+            <span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', background: '#f43f5e' }} />
+            Left Ventricle
+          </button>
+        </Html>
+      </HologramViewer>
 
       {/* Orbit Tip Pill */}
       <div style={{
@@ -90,102 +218,6 @@ export const HeartOverlay: React.FC<HeartOverlayProps> = ({ language, onSpeak })
       }}>
         <Orbit size={12} className="heart-pulse" />
         <span>Drag to rotate • Tap parts to learn</span>
-      </div>
-
-      {/* Heart HTML Label Overlay Pins */}
-      <div style={{
-        position: 'absolute',
-        inset: 0,
-        zIndex: 5,
-        pointerEvents: 'none'
-      }}>
-        {/* Aorta Label Pin */}
-        <button
-          onClick={() => selectPart('aorta')}
-          className="glass-card"
-          style={{
-            position: 'absolute',
-            top: '15%',
-            left: '52%',
-            pointerEvents: 'auto',
-            padding: '4px 10px',
-            borderRadius: '12px',
-            fontSize: '11px',
-            fontWeight: '700',
-            border: selectedPart === 'aorta' ? '1px solid var(--accent)' : '1px solid rgba(255,255,255,0.1)',
-            boxShadow: selectedPart === 'aorta' ? '0 0 10px var(--accent-glow)' : 'none',
-            color: selectedPart === 'aorta' ? 'var(--accent)' : '#fff',
-            cursor: 'pointer'
-          }}
-        >
-          🟡 Aorta
-        </button>
-
-        {/* Pulmonary Valve Label Pin */}
-        <button
-          onClick={() => selectPart('pulmonary_valve')}
-          className="glass-card"
-          style={{
-            position: 'absolute',
-            top: '32%',
-            left: '26%',
-            pointerEvents: 'auto',
-            padding: '4px 10px',
-            borderRadius: '12px',
-            fontSize: '11px',
-            fontWeight: '700',
-            border: selectedPart === 'pulmonary_valve' ? '1px solid var(--secondary)' : '1px solid rgba(255,255,255,0.1)',
-            boxShadow: selectedPart === 'pulmonary_valve' ? '0 0 10px var(--secondary-glow)' : 'none',
-            color: selectedPart === 'pulmonary_valve' ? 'var(--secondary)' : '#fff',
-            cursor: 'pointer'
-          }}
-        >
-          🔵 Pulmonary Valve
-        </button>
-
-        {/* Right Ventricle Label Pin */}
-        <button
-          onClick={() => selectPart('right_ventricle')}
-          className="glass-card"
-          style={{
-            position: 'absolute',
-            top: '60%',
-            left: '30%',
-            pointerEvents: 'auto',
-            padding: '4px 10px',
-            borderRadius: '12px',
-            fontSize: '11px',
-            fontWeight: '700',
-            border: selectedPart === 'right_ventricle' ? '1px solid var(--primary)' : '1px solid rgba(255,255,255,0.1)',
-            boxShadow: selectedPart === 'right_ventricle' ? '0 0 10px var(--primary-glow)' : 'none',
-            color: selectedPart === 'right_ventricle' ? 'var(--primary)' : '#fff',
-            cursor: 'pointer'
-          }}
-        >
-          🔴 Right Ventricle
-        </button>
-
-        {/* Left Ventricle Label Pin */}
-        <button
-          onClick={() => selectPart('left_ventricle')}
-          className="glass-card"
-          style={{
-            position: 'absolute',
-            top: '68%',
-            left: '60%',
-            pointerEvents: 'auto',
-            padding: '4px 10px',
-            borderRadius: '12px',
-            fontSize: '11px',
-            fontWeight: '700',
-            border: selectedPart === 'left_ventricle' ? '1px solid var(--danger)' : '1px solid rgba(255,255,255,0.1)',
-            boxShadow: selectedPart === 'left_ventricle' ? '0 0 10px var(--danger-glow)' : 'none',
-            color: selectedPart === 'left_ventricle' ? 'var(--danger)' : '#fff',
-            cursor: 'pointer'
-          }}
-        >
-          🔴 Left Ventricle
-        </button>
       </div>
 
       {/* Explanations Bottom Floating Pill */}
