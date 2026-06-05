@@ -1,8 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo, Suspense } from 'react';
 import type { Language } from '../../types';
 import { ScanLine, Volume2, RefreshCw, ChevronDown, ChevronUp, Info, X } from 'lucide-react';
 import { CustomARScene, hasCustomARScene, CUSTOM_AR_SCENES } from '../ar/CustomARScene';
-
+import { HologramViewer } from '../three/HologramViewer';
+import { HolographicRing } from '../three/VolumetricScenes';
 
 interface HologramLabel {
   id: string;
@@ -106,6 +107,21 @@ export const DynamicAIOverlay: React.FC<DynamicAIOverlayProps> = ({
       alignItems: 'center', justifyContent: 'center',
       overflow: 'hidden',
     }}>
+
+      {/* 3D Hologram Background with holographic rings */}
+      <HologramViewer
+        modelUrl="/models/robot.glb"
+        scale={45.0}
+        hologramColor="#10b981"
+        autoRotate={true}
+        rotateSpeed={0.6}
+        enableOrbitControls={false}
+        loadingLabel="Generating AI Hologram..."
+        useFallback={false}
+        style={{ opacity: currentHtml || hasCustom ? 0.3 : 0.8 }}
+      >
+        {/* Holographic rings rendered inside the Canvas */}
+      </HologramViewer>
 
       {/* Subtle grid overlay */}
       <div style={{

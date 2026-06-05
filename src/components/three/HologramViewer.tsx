@@ -2,6 +2,8 @@ import React, { Suspense, useRef, useState, useMemo } from 'react';
 import { Canvas, useFrame, } from '@react-three/fiber';
 import { OrbitControls, Float, useGLTF, Html } from '@react-three/drei';
 import * as THREE from 'three';
+import { ErrorBoundary } from 'react-error-boundary';
+import { ShadowCatcherPlane, ARLighting } from './VolumetricScenes';
 
 // ─── Types ───────────────────────────────────────────────────────────
 interface HologramViewerProps {
@@ -130,7 +132,7 @@ function GLBModel({
   autoRotate,
   rotateSpeed,
   onPartClick,
-  onError,
+  children,
 }: {
   url: string;
   scale: number;
@@ -140,13 +142,10 @@ function GLBModel({
   autoRotate: boolean;
   rotateSpeed: number;
   onPartClick?: (partName: string) => void;
-  onError: () => void;
+  children?: React.ReactNode;
 }) {
   const groupRef = useRef<THREE.Group>(null!);
-  const { scene } = useGLTF(url, true, undefined, (e) => {
-    console.warn('GLTF load error:', e);
-    onError();
-  });
+  const { scene } = useGLTF(url);
 
   // Clone scene so multiple instances don't conflict
   const clonedScene = useMemo(() => {
@@ -158,21 +157,59 @@ function GLBModel({
     box.getCenter(center);
     clone.position.sub(center);
 
-    // Apply holographic material to all meshes
-    const hColor = new THREE.Color(hologramColor);
+    // Dynamic color assignment helper
+    const getPartColorAndProperties = (name: string): { color: THREE.Color; emissive: THREE.Color; emissiveIntensity: number; roughness: number } => {
+      const lower = name.toLowerCase();
+      // If it's a heart model (detected by names inside heart.glb)
+      if (lower.includes('aorta') || lower.includes('aortic')) {
+        const c = new THREE.Color('#eab308'); // Warm Gold / Yellow (Aorta)
+        return { color: c, emissive: c, emissiveIntensity: 0.5, roughness: 0.2 };
+      }
+      if (lower.includes('pulmonary') || lower.includes('valve') || lower.includes('leaflet')) {
+        const c = new THREE.Color('#38bdf8'); // Sky Blue / Cyan (Pulmonary)
+        return { color: c, emissive: c, emissiveIntensity: 0.65, roughness: 0.25 };
+      }
+      if (lower.includes('left ventricle') || lower.includes('left atrium')) {
+        const c = new THREE.Color('#f43f5e'); // Bright red/rose (oxygen rich Left Ventricle)
+        return { color: c, emissive: c, emissiveIntensity: 0.45, roughness: 0.35 };
+      }
+      if (lower.includes('right ventricle') || lower.includes('right atrium')) {
+        const c = new THREE.Color('#9f1239'); // Dark crimson/blueish-red (oxygen poor Right Ventricle)
+        return { color: c, emissive: c, emissiveIntensity: 0.4, roughness: 0.35 };
+      }
+      if (lower.includes('artery') || lower.includes('coronary') || lower.includes('branch')) {
+        const c = new THREE.Color('#e11d48'); // Coronary artery red
+        return { color: c, emissive: c, emissiveIntensity: 0.55, roughness: 0.15 };
+      }
+      // Default color
+      const baseColor = new THREE.Color(hologramColor);
+      return {
+        color: baseColor,
+        emissive: baseColor,
+        emissiveIntensity: 0.4,
+        roughness: 0.35
+      };
+    };
+
+    // Apply PBR materials
     clone.traverse((child) => {
       if ((child as THREE.Mesh).isMesh) {
         const mesh = child as THREE.Mesh;
-        mesh.material = new THREE.MeshPhongMaterial({
-          color: hColor,
-          emissive: hColor,
-          emissiveIntensity: 0.35,
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
+        
+        const props = getPartColorAndProperties(mesh.name || '');
+        
+        mesh.material = new THREE.MeshStandardMaterial({
+          color: props.color,
+          emissive: props.emissive,
+          emissiveIntensity: props.emissiveIntensity,
           transparent: true,
           opacity: 0.75,
           side: THREE.DoubleSide,
           depthWrite: false,
-          shininess: 120,
-          specular: new THREE.Color('#ffffff'),
+          roughness: props.roughness,
+          metalness: 0.15,
         });
       }
     });
@@ -196,6 +233,7 @@ function GLBModel({
   return (
     <group ref={groupRef} position={[0, positionY, 0]} scale={scale} rotation={rotation || [0, 0, 0]}>
       <primitive object={clonedScene} onClick={handleClick} />
+      {children}
     </group>
   );
 }
@@ -262,18 +300,19 @@ function ProceduralFallback({
 
   return (
     <group ref={groupRef}>
-      {/* Main shape */}
-      <mesh>
+      {/* Main shape with PBR material */}
+      <mesh castShadow receiveShadow>
         {renderGeometry()}
-        <meshPhongMaterial
+        <meshStandardMaterial
           color={hColor}
           emissive={hColor}
-          emissiveIntensity={0.3}
+          emissiveIntensity={0.35}
           transparent
-          opacity={0.6}
+          opacity={0.7}
           side={THREE.DoubleSide}
           depthWrite={false}
-          shininess={100}
+          roughness={0.25}
+          metalness={0.5}
         />
       </mesh>
       {/* Wireframe overlay */}
@@ -283,7 +322,7 @@ function ProceduralFallback({
           color={hColor}
           wireframe
           transparent
-          opacity={0.2}
+          opacity={0.15}
           depthWrite={false}
         />
       </mesh>
@@ -294,8 +333,9 @@ function ProceduralFallback({
           <meshBasicMaterial
             color={hColor}
             transparent
-            opacity={0.15}
+            opacity={0.12}
             depthWrite={false}
+            blending={THREE.AdditiveBlending}
           />
         </mesh>
       )}
@@ -351,7 +391,8 @@ function SceneContent({
   loadingLabel,
   useFallback,
   proceduralShape,
-}: Omit<HologramViewerProps, 'style' | 'children'> & {
+  children,
+}: Omit<HologramViewerProps, 'style'> & {
   modelUrl: string;
   useFallback: boolean;
 }) {
@@ -360,11 +401,16 @@ function SceneContent({
 
   return (
     <>
-      {/* Lighting */}
-      <ambientLight intensity={0.3} />
-      <directionalLight position={[5, 8, 5]} intensity={0.6} color="#ffffff" />
-      <directionalLight position={[-4, -4, -3]} intensity={0.4} color={hologramColor} />
-      <pointLight position={[0, 0, 3]} intensity={1.0} color={hologramColor} distance={12} />
+      {/* AR-Compatible PBR Lighting with Shadows */}
+      <ARLighting
+        sunIntensity={1.5}
+        sunPosition={[5, 8, 5]}
+        ambientIntensity={0.35}
+      />
+      <pointLight position={[0, 0, 3]} intensity={0.8} color={hologramColor} distance={12} />
+
+      {/* Shadow Catcher for AR grounding */}
+      <ShadowCatcherPlane />
 
       {/* Fog */}
       <fog attach="fog" args={['#020509', 8, 20]} />
@@ -411,17 +457,30 @@ function SceneContent({
               rotateSpeed={rotateSpeed ?? 0.5}
             />
           ) : (
-            <GLBModel
-              url={modelUrl}
-              scale={scale ?? 1}
-              positionY={positionY ?? 0}
-              rotation={rotation}
-              hologramColor={hologramColor || '#10b981'}
-              autoRotate={autoRotate ?? true}
-              rotateSpeed={rotateSpeed ?? 0.5}
-              onPartClick={onPartClick}
+            <ErrorBoundary
+              fallback={
+                <ProceduralFallback
+                  shape={proceduralShape}
+                  hologramColor={hologramColor || '#10b981'}
+                  autoRotate={autoRotate ?? true}
+                  rotateSpeed={rotateSpeed ?? 0.5}
+                />
+              }
               onError={() => setLoadError(true)}
-            />
+            >
+              <GLBModel
+                url={modelUrl}
+                scale={scale ?? 1}
+                positionY={positionY ?? 0}
+                rotation={rotation}
+                hologramColor={hologramColor || '#10b981'}
+                autoRotate={autoRotate ?? true}
+                rotateSpeed={rotateSpeed ?? 0.5}
+                onPartClick={onPartClick}
+              >
+                {children}
+              </GLBModel>
+            </ErrorBoundary>
           )}
         </Suspense>
       </Float>
@@ -459,6 +518,7 @@ export const HologramViewer: React.FC<HologramViewerProps> = ({
     >
       <Canvas
         camera={{ position: [0, 1, 6], fov: 45 }}
+        shadows
         gl={{
           antialias: true,
           alpha: true,
@@ -480,9 +540,10 @@ export const HologramViewer: React.FC<HologramViewerProps> = ({
           loadingLabel={loadingLabel}
           useFallback={useFallback || hasError}
           proceduralShape={proceduralShape}
-        />
+        >
+          {children}
+        </SceneContent>
       </Canvas>
-      {children}
     </div>
   );
 };

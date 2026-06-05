@@ -100,10 +100,12 @@ export const RecentScans: React.FC<RecentScansProps> = ({ onRelaunch, refreshSig
       {history.slice(0, 4).map(entry => {
         const meta = PAGE_TYPE_META[entry.page_type] || PAGE_TYPE_META.unknown;
         return (
-          <button
+          <div
             key={entry.id}
             onClick={() => onRelaunch(entry.page_type, entry.title, entry.explanation)}
             className="glass-btn ghost"
+            role="button"
+            tabIndex={0}
             style={{
               width: '100%',
               padding: '10px 14px',
@@ -115,6 +117,14 @@ export const RecentScans: React.FC<RecentScansProps> = ({ onRelaunch, refreshSig
               borderColor: `${meta.color}25`,
               background: `${meta.color}08`,
               transition: 'all 0.2s ease',
+              cursor: 'pointer',
+              userSelect: 'none',
+            }}
+            onKeyDown={e => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                onRelaunch(entry.page_type, entry.title, entry.explanation);
+              }
             }}
             onMouseEnter={e => {
               e.currentTarget.style.background = `${meta.color}16`;
@@ -164,7 +174,7 @@ export const RecentScans: React.FC<RecentScansProps> = ({ onRelaunch, refreshSig
             </button>
 
             <ChevronRight size={14} style={{ color: meta.color, flexShrink: 0 }} />
-          </button>
+          </div>
         );
       })}
     </div>

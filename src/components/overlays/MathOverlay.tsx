@@ -1,6 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense, useRef, useMemo } from 'react';
 import type { Language } from '../../types';
 import { Volume2, ChevronRight, ChevronLeft, Scale } from 'lucide-react';
+import { Canvas, useFrame } from '@react-three/fiber';
+import { Float } from '@react-three/drei';
+import * as THREE from 'three';
+import { ARLighting, ShadowCatcherPlane } from '../three/VolumetricScenes';
 
 interface MathOverlayProps {
   language: Language;
@@ -36,7 +40,7 @@ const steps: StepDetails[] = [
   {
     equation: "2x + 4 - 4 = 10 - 4",
     leftXCount: 2,
-    leftUnitCount: 0, // Faded
+    leftUnitCount: 0,
     rightUnitCount: 6,
     title: {
       en: "Step 2: Subtract 4 from Both Sides",
@@ -67,26 +71,162 @@ const steps: StepDetails[] = [
   }
 ];
 
+// ─── Variable Block (green "x" bar) ──────────────────────────────────
+function VariableBlock({ position }: { position: [number, number, number] }) {
+  return (
+    <mesh position={position} castShadow>
+      <boxGeometry args={[0.35, 0.6, 0.25]} />
+      <meshStandardMaterial
+        color="#10b981"
+        emissive="#10b981"
+        emissiveIntensity={0.35}
+        roughness={0.3}
+        metalness={0.2}
+      />
+    </mesh>
+  );
+}
+
+// ─── Unit Block (orange "+1" cube) ────────────────────────────────────
+function UnitBlock({ position }: { position: [number, number, number] }) {
+  return (
+    <mesh position={position} castShadow>
+      <boxGeometry args={[0.22, 0.22, 0.22]} />
+      <meshStandardMaterial
+        color="#f59e0b"
+        emissive="#f59e0b"
+        emissiveIntensity={0.3}
+        roughness={0.35}
+        metalness={0.15}
+      />
+    </mesh>
+  );
+}
+
+// ─── Balance Scale ───────────────────────────────────────────────────
+function BalanceScale({ step }: { step: StepDetails }) {
+  const groupRef = useRef<THREE.Group>(null!);
+
+  useFrame(({ clock }) => {
+    if (groupRef.current) {
+      groupRef.current.rotation.y = Math.sin(clock.getElapsedTime() * 0.3) * 0.08;
+    }
+  });
+
+  // Layout blocks on left plate
+  const leftBlocks = useMemo(() => {
+    const blocks: { type: 'x' | 'unit'; pos: [number, number, number] }[] = [];
+    let xOff = -0.25;
+    for (let i = 0; i < step.leftXCount; i++) {
+      blocks.push({ type: 'x', pos: [xOff + i * 0.45, 0.4, 0] });
+    }
+    const unitStartX = -0.3;
+    for (let i = 0; i < step.leftUnitCount; i++) {
+      const row = Math.floor(i / 4);
+      const col = i % 4;
+      blocks.push({ type: 'unit', pos: [unitStartX + col * 0.28, 0.15 + row * 0.28, 0.1] });
+    }
+    return blocks;
+  }, [step.leftXCount, step.leftUnitCount]);
+
+  // Layout blocks on right plate
+  const rightBlocks = useMemo(() => {
+    const blocks: { pos: [number, number, number] }[] = [];
+    for (let i = 0; i < step.rightUnitCount; i++) {
+      const row = Math.floor(i / 4);
+      const col = i % 4;
+      blocks.push({ pos: [-0.3 + col * 0.28, 0.15 + row * 0.28, 0] });
+    }
+    return blocks;
+  }, [step.rightUnitCount]);
+
+  return (
+    <group ref={groupRef}>
+      {/* Fulcrum — metallic cone */}
+      <mesh position={[0, -1.8, 0]} castShadow>
+        <coneGeometry args={[0.35, 0.8, 16]} />
+        <meshStandardMaterial color="#94a3b8" roughness={0.15} metalness={0.8} />
+      </mesh>
+
+      {/* Horizontal beam */}
+      <mesh position={[0, -1.35, 0]} castShadow>
+        <boxGeometry args={[4.0, 0.1, 0.15]} />
+        <meshStandardMaterial color="#cbd5e1" roughness={0.2} metalness={0.7} />
+      </mesh>
+
+      {/* Left plate */}
+      <group position={[-1.5, -1.25, 0]}>
+        {/* Plate disc */}
+        <mesh receiveShadow>
+          <cylinderGeometry args={[0.7, 0.7, 0.06, 32]} />
+          <meshStandardMaterial color="#8b5cf6" roughness={0.3} metalness={0.4} emissive="#8b5cf6" emissiveIntensity={0.08} />
+        </mesh>
+        {/* Strings */}
+        {[[-0.4, 0], [0.4, 0], [0, -0.4], [0, 0.4]].map(([x, z], i) => (
+          <mesh key={i} position={[x, 0.35, z]}>
+            <cylinderGeometry args={[0.008, 0.008, 0.7, 4]} />
+            <meshStandardMaterial color="#64748b" roughness={0.5} metalness={0.3} />
+          </mesh>
+        ))}
+        {/* Blocks on left plate */}
+        {leftBlocks.map((b, i) =>
+          b.type === 'x'
+            ? <VariableBlock key={`lx-${i}`} position={b.pos} />
+            : <UnitBlock key={`lu-${i}`} position={b.pos} />
+        )}
+      </group>
+
+      {/* Right plate */}
+      <group position={[1.5, -1.25, 0]}>
+        <mesh receiveShadow>
+          <cylinderGeometry args={[0.7, 0.7, 0.06, 32]} />
+          <meshStandardMaterial color="#06b6d4" roughness={0.3} metalness={0.4} emissive="#06b6d4" emissiveIntensity={0.08} />
+        </mesh>
+        {[[-0.4, 0], [0.4, 0], [0, -0.4], [0, 0.4]].map(([x, z], i) => (
+          <mesh key={i} position={[x, 0.35, z]}>
+            <cylinderGeometry args={[0.008, 0.008, 0.7, 4]} />
+            <meshStandardMaterial color="#64748b" roughness={0.5} metalness={0.3} />
+          </mesh>
+        ))}
+        {rightBlocks.map((b, i) => (
+          <UnitBlock key={`ru-${i}`} position={b.pos} />
+        ))}
+      </group>
+    </group>
+  );
+}
+
+// ─── Balance Scene ───────────────────────────────────────────────────
+function BalanceScene({ step }: { step: StepDetails }) {
+  return (
+    <>
+      <ARLighting sunIntensity={1.3} sunPosition={[4, 7, 5]} ambientIntensity={0.35} />
+      <pointLight position={[0, 2, 3]} intensity={0.5} color="#ffffff" distance={10} />
+      <ShadowCatcherPlane position={[0, -2.5, 0]} />
+      <fog attach="fog" args={['#020509', 8, 18]} />
+
+      <Float speed={1.5} rotationIntensity={0.05} floatIntensity={0.3} floatingRange={[-0.05, 0.05]}>
+        <BalanceScale step={step} />
+      </Float>
+    </>
+  );
+}
+
 export const MathOverlay: React.FC<MathOverlayProps> = ({ language, onSpeak }) => {
   const [activeStep, setActiveStep] = useState(0);
 
   const currentStep = steps[activeStep];
 
   useEffect(() => {
-    // Speak description when step changes
     onSpeak(`${currentStep.title[language]}. ${currentStep.description[language]}`);
   }, [activeStep]);
 
   const handleNext = () => {
-    if (activeStep < steps.length - 1) {
-      setActiveStep(prev => prev + 1);
-    }
+    if (activeStep < steps.length - 1) setActiveStep(prev => prev + 1);
   };
 
   const handlePrev = () => {
-    if (activeStep > 0) {
-      setActiveStep(prev => prev - 1);
-    }
+    if (activeStep > 0) setActiveStep(prev => prev - 1);
   };
 
   return (
@@ -99,12 +239,27 @@ export const MathOverlay: React.FC<MathOverlayProps> = ({ language, onSpeak }) =
       padding: '20px',
       background: 'radial-gradient(circle at center, transparent 30%, rgba(10, 11, 22, 0.4) 100%)',
     }}>
+      {/* 3D Balance Scale Canvas */}
+      <div style={{ position: 'absolute', inset: 0, zIndex: 1 }}>
+        <Canvas
+          camera={{ position: [0, 0.5, 5], fov: 45 }}
+          shadows
+          gl={{ antialias: true, alpha: true, powerPreference: 'high-performance' }}
+          style={{ background: 'transparent' }}
+        >
+          <Suspense fallback={null}>
+            <BalanceScene step={currentStep} />
+          </Suspense>
+        </Canvas>
+      </div>
+
       {/* Equation Pill Indicator */}
       <div style={{
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
-        zIndex: 10
+        zIndex: 10,
+        position: 'relative',
       }}>
         <div style={{
           display: 'flex',
@@ -136,165 +291,8 @@ export const MathOverlay: React.FC<MathOverlayProps> = ({ language, onSpeak }) =
         </div>
       </div>
 
-      {/* Visual See-Saw Balance Scale Section */}
-      <div style={{
-        position: 'relative',
-        flex: 1,
-        display: 'flex',
-        flexDirection: 'column',
-        justifyContent: 'center',
-        alignItems: 'center',
-        zIndex: 5,
-        margin: '20px 0'
-      }}>
-        {/* Seesaw Plate */}
-        <div style={{
-          width: '80%',
-          height: '8px',
-          background: 'rgba(255,255,255,0.2)',
-          borderRadius: '4px',
-          position: 'relative',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'flex-end',
-          padding: '0 40px'
-        }}>
-          {/* Left Plate (Holds variables and remaining units) */}
-          <div style={{
-            position: 'absolute',
-            left: '10%',
-            bottom: '8px',
-            transform: 'translateX(-50%)',
-            width: '130px',
-            height: '70px',
-            borderBottom: '4px solid var(--primary)',
-            background: 'rgba(139, 92, 246, 0.05)',
-            borderTopLeftRadius: '10px',
-            borderTopRightRadius: '10px',
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'flex-end',
-            alignItems: 'center',
-            padding: '6px',
-            gap: '6px',
-            transition: 'all 0.3s ease'
-          }}>
-            {/* Variable Bars Grid */}
-            <div style={{ display: 'flex', gap: '6px' }}>
-              {Array.from({ length: currentStep.leftXCount }).map((_, i) => (
-                <div
-                  key={`x-${i}`}
-                  style={{
-                    width: '32px',
-                    height: '50px',
-                    background: 'linear-gradient(135deg, #10b981 0%, #047857 100%)',
-                    border: '1px solid #10b981',
-                    borderRadius: '6px',
-                    color: '#fff',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontWeight: '800',
-                    fontSize: '16px',
-                    boxShadow: '0 0 10px rgba(16,185,129,0.3)',
-                    animation: 'scaleIn 0.3s ease'
-                  }}
-                >
-                  x
-                </div>
-              ))}
-            </div>
-
-            {/* Units on Left Side (fade out in Step 2) */}
-            {activeStep === 0 && (
-              <div style={{ display: 'flex', gap: '4px', position: 'absolute', top: '-14px' }}>
-                {Array.from({ length: 4 }).map((_, i) => (
-                  <div
-                    key={`lu-${i}`}
-                    style={{
-                      width: '16px',
-                      height: '16px',
-                      background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
-                      border: '1px solid #f59e0b',
-                      borderRadius: '3px',
-                      color: '#fff',
-                      fontSize: '9px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      fontWeight: '800',
-                      boxShadow: '0 0 5px rgba(245,158,11,0.3)',
-                      animation: 'scaleIn 0.3s ease'
-                    }}
-                  >
-                    +1
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Seesaw Fulcrum Pivot Triangle */}
-          <div style={{
-            position: 'absolute',
-            left: '50%',
-            bottom: '-24px',
-            transform: 'translateX(-50%)',
-            width: '0',
-            height: '0',
-            borderStyle: 'solid',
-            borderWidth: '0 16px 24px 16px',
-            borderColor: 'transparent transparent rgba(255,255,255,0.3) transparent'
-          }} />
-
-          {/* Right Plate (Holds unit blocks) */}
-          <div style={{
-            position: 'absolute',
-            right: '10%',
-            bottom: '8px',
-            transform: 'translateX(50%)',
-            width: '130px',
-            height: '70px',
-            borderBottom: '4px solid var(--secondary)',
-            background: 'rgba(6, 182, 212, 0.05)',
-            borderTopLeftRadius: '10px',
-            borderTopRightRadius: '10px',
-            display: 'flex',
-            flexWrap: 'wrap-reverse',
-            justifyContent: 'center',
-            alignContent: 'flex-start',
-            padding: '8px',
-            gap: '4px',
-            transition: 'all 0.3s ease'
-          }}>
-            {Array.from({ length: currentStep.rightUnitCount }).map((_, i) => (
-              <div
-                key={`ru-${i}`}
-                style={{
-                  width: '18px',
-                  height: '18px',
-                  background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
-                  border: '1px solid #f59e0b',
-                  borderRadius: '3px',
-                  color: '#fff',
-                  fontSize: '9px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontWeight: '800',
-                  boxShadow: '0 0 5px rgba(245,158,11,0.3)',
-                  animation: 'scaleIn 0.3s ease'
-                }}
-              >
-                +1
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
       {/* Control Area: Steps Navigation and TTS Explanations */}
-      <div style={{ zIndex: 10, display: 'flex', flexDirection: 'column', gap: '12px' }}>
+      <div style={{ zIndex: 10, display: 'flex', flexDirection: 'column', gap: '12px', position: 'relative' }}>
         {/* Navigation Arrows */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <button

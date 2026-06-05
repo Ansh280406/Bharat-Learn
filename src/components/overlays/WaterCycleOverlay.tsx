@@ -1,7 +1,20 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useState, Suspense } from 'react';
 import type { Language, PartExplanation } from '../../types';
 import { Volume2 } from 'lucide-react';
-import { HologramViewer } from '../three/HologramViewer';
+import { Canvas, useFrame } from '@react-three/fiber';
+import { Float, Html } from '@react-three/drei';
+import {
+  TerrainMesh,
+  WaterBody,
+  VolumetricCloud,
+  RainParticleSystem,
+  EvaporationParticles,
+  EmissiveSun,
+  RiverMesh,
+  ARLighting,
+  ShadowCatcherPlane,
+} from '../three/VolumetricScenes';
+import * as THREE from 'three';
 
 interface WaterCycleOverlayProps {
   language: Language;
@@ -35,91 +48,87 @@ const cycleStages: Record<string, PartExplanation> = {
   }
 };
 
+// ─── 3D Water Cycle Scene ────────────────────────────────────────────
+function WaterCycleScene() {
+  return (
+    <>
+      {/* AR Lighting with shadows */}
+      <ARLighting sunIntensity={1.6} sunPosition={[6, 8, 4]} ambientIntensity={0.35} />
+
+      {/* Shadow catcher */}
+      <ShadowCatcherPlane position={[0, -2.5, 0]} size={16} />
+
+      {/* Fog for depth */}
+      <fog attach="fog" args={['#0a0b16', 10, 22]} />
+
+      {/* Mountain terrain — noise-displaced */}
+      <TerrainMesh
+        width={12}
+        depth={8}
+        segments={64}
+        heightScale={3.0}
+        position={[-1, -2.5, -2]}
+        color="#2d1f0e"
+        snowColor="#dfe6ed"
+        snowThreshold={0.6}
+      />
+
+      {/* Ocean water body — animated ripples */}
+      <WaterBody
+        width={8}
+        depth={6}
+        segments={48}
+        position={[3, -2.2, 1]}
+        color="#0891b2"
+        opacity={0.72}
+        waveSpeed={1.2}
+        waveHeight={0.06}
+      />
+
+      {/* River flowing down mountain */}
+      <RiverMesh
+        points={[
+          new THREE.Vector3(-2.5, 0.5, -1),
+          new THREE.Vector3(-1.5, -0.5, -0.3),
+          new THREE.Vector3(-0.3, -1.5, 0),
+          new THREE.Vector3(0.8, -2.0, 0.4),
+          new THREE.Vector3(2.5, -2.2, 0.8),
+        ]}
+        width={0.12}
+        color="#06b6d4"
+      />
+
+      {/* Emissive glowing sun */}
+      <EmissiveSun position={[5, 5, -4]} radius={0.7} color="#fbbf24" intensity={3.5} />
+
+      {/* Volumetric clouds */}
+      <VolumetricCloud position={[-2, 3.5, -1]} scale={1.2} opacity={0.55} puffCount={8} />
+      <VolumetricCloud position={[1, 4, -2]} scale={0.9} opacity={0.5} puffCount={6} />
+      <VolumetricCloud position={[-3.5, 3, 0]} scale={0.7} opacity={0.45} puffCount={5} />
+
+      {/* Rain particles falling from clouds */}
+      <RainParticleSystem
+        count={180}
+        area={[5, 5, 3]}
+        position={[-1.5, 3, -0.5]}
+        color="#7dd3fc"
+        speed={5}
+      />
+
+      {/* Evaporation particles rising from water */}
+      <EvaporationParticles
+        count={50}
+        position={[3, -1.8, 1]}
+        color="#fbbf24"
+        area={[4, 3]}
+        speed={0.5}
+      />
+    </>
+  );
+}
+
 export const WaterCycleOverlay: React.FC<WaterCycleOverlayProps> = ({ language, onSpeak }) => {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
   const [selectedStage, setSelectedStage] = useState<string | null>(null);
-
-  // Evaporation and Precipitation Canvas Particle Simulation
-  useEffect(() => {
-    if (!canvasRef.current) return;
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    canvas.width = canvas.parentElement?.clientWidth || 640;
-    canvas.height = canvas.parentElement?.clientHeight || 480;
-
-    let animationId: number;
-
-    interface VaporParticle { x: number; y: number; speed: number; r: number; opacity: number; }
-    interface RainParticle { x: number; y: number; speed: number; len: number; }
-
-    const vapors: VaporParticle[] = [];
-    const rains: RainParticle[] = [];
-
-    const initVapor = () => ({
-      x: canvas.width * 0.6 + Math.random() * (canvas.width * 0.35),
-      y: canvas.height * 0.75 + Math.random() * (canvas.height * 0.15),
-      speed: Math.random() * 0.8 + 0.4,
-      r: Math.random() * 2 + 1.5,
-      opacity: Math.random() * 0.5 + 0.3
-    });
-
-    const initRain = () => ({
-      x: canvas.width * 0.1 + Math.random() * (canvas.width * 0.45),
-      y: canvas.height * 0.1 + Math.random() * (canvas.height * 0.1),
-      speed: Math.random() * 4 + 6,
-      len: Math.random() * 8 + 6
-    });
-
-    for (let i = 0; i < 25; i++) vapors.push(initVapor());
-    for (let i = 0; i < 40; i++) rains.push(initRain());
-
-    const drawSimulation = () => {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-      vapors.forEach((p, idx) => {
-        p.y -= p.speed;
-        p.x += Math.sin(p.y * 0.05) * 0.3;
-        p.opacity -= 0.002;
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(245, 158, 11, ${p.opacity})`;
-        ctx.shadowColor = '#f59e0b';
-        ctx.shadowBlur = 4;
-        ctx.fill();
-        ctx.shadowBlur = 0;
-        if (p.y < canvas.height * 0.25 || p.opacity <= 0) vapors[idx] = initVapor();
-      });
-
-      rains.forEach((p, idx) => {
-        p.y += p.speed;
-        p.x -= 0.5;
-        ctx.beginPath();
-        ctx.strokeStyle = 'rgba(6, 182, 212, 0.6)';
-        ctx.lineWidth = 1.5;
-        ctx.moveTo(p.x, p.y);
-        ctx.lineTo(p.x - 1, p.y + p.len);
-        ctx.stroke();
-        if (p.y > canvas.height * 0.7) rains[idx] = initRain();
-      });
-
-      animationId = requestAnimationFrame(drawSimulation);
-    };
-
-    drawSimulation();
-
-    const handleResize = () => {
-      canvas.width = canvas.parentElement?.clientWidth || 640;
-      canvas.height = canvas.parentElement?.clientHeight || 480;
-    };
-    window.addEventListener('resize', handleResize);
-
-    return () => {
-      cancelAnimationFrame(animationId);
-      window.removeEventListener('resize', handleResize);
-    };
-  }, []);
 
   const selectStage = (stageKey: string) => {
     setSelectedStage(stageKey);
@@ -137,70 +146,19 @@ export const WaterCycleOverlay: React.FC<WaterCycleOverlayProps> = ({ language, 
       padding: '20px',
       background: 'radial-gradient(circle at center, transparent 30%, rgba(10, 11, 22, 0.4) 100%)',
     }}>
-      {/* 3D Earth Hologram Background */}
-      <HologramViewer
-        modelUrl="/models/earth.glb"
-        scale={1.5}
-        hologramColor="#0ea5e9"
-        autoRotate={true}
-        rotateSpeed={0.2}
-        enableOrbitControls={false}
-        loadingLabel="Loading Earth Hologram..."
-        style={{ opacity: 0.5 }}
-      />
-
-      {/* Background SVG Diagram illustrating water cycle */}
-      <svg style={{
-        position: 'absolute',
-        inset: 0,
-        width: '100%',
-        height: '100%',
-        zIndex: 2,
-        pointerEvents: 'none'
-      }} viewBox="0 0 640 480" preserveAspectRatio="none">
-        <defs>
-          <linearGradient id="skyGrad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#08071a" stopOpacity="0.4" />
-            <stop offset="60%" stopColor="#0d112d" stopOpacity="0.1" />
-            <stop offset="100%" stopColor="#1e1b4b" stopOpacity="0.0" />
-          </linearGradient>
-          <linearGradient id="mountainGrad" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0%" stopColor="#1e1b4b" />
-            <stop offset="100%" stopColor="#0f172a" />
-          </linearGradient>
-          <linearGradient id="oceanGrad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#0891b2" stopOpacity="0.8" />
-            <stop offset="100%" stopColor="#083344" stopOpacity="0.9" />
-          </linearGradient>
-        </defs>
-        <rect width="640" height="320" fill="url(#skyGrad)" />
-        <path d="M 0,380 L 120,220 L 220,300 L 320,180 L 420,360 L 0,400 Z" fill="url(#mountainGrad)" stroke="rgba(255,255,255,0.05)" />
-        <path d="M 380,360 C 450,360 480,380 640,380 L 640,480 L 380,480 Z" fill="url(#oceanGrad)" />
-        <path d="M 0,390 L 390,365" stroke="rgba(255,255,255,0.08)" strokeWidth="2" />
-        <path
-          d="M 120,225 Q 180,280 260,320 T 390,362"
-          fill="none"
-          stroke="#06b6d4"
-          strokeWidth="3"
-          strokeDasharray="8 6"
-          style={{ animation: 'dash 1.5s linear infinite' }}
-        />
-        <style>{`
-          @keyframes dash {
-            to { stroke-dashoffset: -28; }
-          }
-        `}</style>
-        <circle cx="560" cy="80" r="30" fill="#f59e0b" opacity="0.15" />
-        <circle cx="560" cy="80" r="20" fill="#fbbf24" />
-      </svg>
-
-      {/* Canvas Layer for Emitters */}
-      <canvas ref={canvasRef} style={{
-        position: 'absolute',
-        inset: 0,
-        zIndex: 3,
-        pointerEvents: 'none'
-      }} />
+      {/* 3D Water Cycle Scene */}
+      <div style={{ position: 'absolute', inset: 0, zIndex: 1 }}>
+        <Canvas
+          camera={{ position: [0, 2, 8], fov: 50 }}
+          shadows
+          gl={{ antialias: true, alpha: true, powerPreference: 'high-performance' }}
+          style={{ background: 'transparent' }}
+        >
+          <Suspense fallback={null}>
+            <WaterCycleScene />
+          </Suspense>
+        </Canvas>
+      </div>
 
       {/* Clickable Interactive Hotspot Overlay Badges */}
       <div style={{

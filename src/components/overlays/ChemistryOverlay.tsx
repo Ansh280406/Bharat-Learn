@@ -1,7 +1,15 @@
-import React, { useState } from 'react';
+import React, { useState, Suspense, useRef } from 'react';
 import type { Language } from '../../types';
 import { Volume2, Atom } from 'lucide-react';
-import { HologramViewer } from '../three/HologramViewer';
+import { Canvas, useFrame } from '@react-three/fiber';
+import * as THREE from 'three';
+import {
+  AtomSphere,
+  BondCylinder,
+  ElectronCloud,
+  ARLighting,
+  ShadowCatcherPlane,
+} from '../three/VolumetricScenes';
 
 interface ChemistryOverlayProps {
   language: Language;
@@ -61,6 +69,118 @@ const MOLECULES: Molecule[] = [
   },
 ];
 
+// ─── Water Molecule (H₂O) ────────────────────────────────────────────
+function WaterMolecule() {
+  const groupRef = useRef<THREE.Group>(null!);
+  // 104.5° bond angle
+  const angle = (104.5 * Math.PI) / 180;
+  const bondLen = 1.2;
+  const h1: [number, number, number] = [bondLen * Math.sin(angle / 2), bondLen * Math.cos(angle / 2), 0];
+  const h2: [number, number, number] = [-bondLen * Math.sin(angle / 2), bondLen * Math.cos(angle / 2), 0];
+  const o: [number, number, number] = [0, 0, 0];
+
+  useFrame(({ clock }) => {
+    if (groupRef.current) {
+      groupRef.current.rotation.y = clock.getElapsedTime() * 0.4;
+    }
+  });
+
+  return (
+    <group ref={groupRef}>
+      <AtomSphere position={o} radius={0.5} color="#ef4444" emissiveIntensity={0.4} />
+      <AtomSphere position={h1} radius={0.35} color="#e2e8f0" emissiveIntensity={0.25} />
+      <AtomSphere position={h2} radius={0.35} color="#e2e8f0" emissiveIntensity={0.25} />
+      <BondCylinder start={o} end={h1} radius={0.07} color="#94a3b8" />
+      <BondCylinder start={o} end={h2} radius={0.07} color="#94a3b8" />
+      <ElectronCloud center={[0, 0.3, 0]} radius={2.0} count={25} color="#60a5fa" speed={0.8} />
+    </group>
+  );
+}
+
+// ─── Methane Molecule (CH₄) ──────────────────────────────────────────
+function MethaneMolecule() {
+  const groupRef = useRef<THREE.Group>(null!);
+  // Tetrahedral positions
+  const c: [number, number, number] = [0, 0, 0];
+  const bondLen = 1.3;
+  const h1: [number, number, number] = [bondLen, bondLen, bondLen];
+  const h2: [number, number, number] = [-bondLen, -bondLen, bondLen];
+  const h3: [number, number, number] = [-bondLen, bondLen, -bondLen];
+  const h4: [number, number, number] = [bondLen, -bondLen, -bondLen];
+  // Normalize to bondLen
+  const norm = (v: [number, number, number]): [number, number, number] => {
+    const len = Math.sqrt(v[0] ** 2 + v[1] ** 2 + v[2] ** 2);
+    return [v[0] / len * bondLen, v[1] / len * bondLen, v[2] / len * bondLen];
+  };
+  const hn1 = norm(h1), hn2 = norm(h2), hn3 = norm(h3), hn4 = norm(h4);
+
+  useFrame(({ clock }) => {
+    if (groupRef.current) {
+      groupRef.current.rotation.y = clock.getElapsedTime() * 0.35;
+      groupRef.current.rotation.x = Math.sin(clock.getElapsedTime() * 0.2) * 0.1;
+    }
+  });
+
+  return (
+    <group ref={groupRef}>
+      <AtomSphere position={c} radius={0.45} color="#14b8a6" emissiveIntensity={0.4} />
+      <AtomSphere position={hn1} radius={0.3} color="#e2e8f0" emissiveIntensity={0.2} />
+      <AtomSphere position={hn2} radius={0.3} color="#e2e8f0" emissiveIntensity={0.2} />
+      <AtomSphere position={hn3} radius={0.3} color="#e2e8f0" emissiveIntensity={0.2} />
+      <AtomSphere position={hn4} radius={0.3} color="#e2e8f0" emissiveIntensity={0.2} />
+      <BondCylinder start={c} end={hn1} radius={0.06} />
+      <BondCylinder start={c} end={hn2} radius={0.06} />
+      <BondCylinder start={c} end={hn3} radius={0.06} />
+      <BondCylinder start={c} end={hn4} radius={0.06} />
+      <ElectronCloud center={[0, 0, 0]} radius={2.2} count={30} color="#2dd4bf" speed={0.6} />
+    </group>
+  );
+}
+
+// ─── CO₂ Molecule ────────────────────────────────────────────────────
+function CO2Molecule() {
+  const groupRef = useRef<THREE.Group>(null!);
+  const c: [number, number, number] = [0, 0, 0];
+  const o1: [number, number, number] = [-1.4, 0, 0];
+  const o2: [number, number, number] = [1.4, 0, 0];
+
+  useFrame(({ clock }) => {
+    if (groupRef.current) {
+      groupRef.current.rotation.y = clock.getElapsedTime() * 0.3;
+    }
+  });
+
+  return (
+    <group ref={groupRef}>
+      <AtomSphere position={c} radius={0.42} color="#14b8a6" emissiveIntensity={0.35} />
+      <AtomSphere position={o1} radius={0.48} color="#ef4444" emissiveIntensity={0.35} />
+      <AtomSphere position={o2} radius={0.48} color="#ef4444" emissiveIntensity={0.35} />
+      {/* Double bonds — two cylinders offset slightly */}
+      <BondCylinder start={[-0.05, 0.08, 0]} end={[-1.35, 0.08, 0]} radius={0.055} />
+      <BondCylinder start={[-0.05, -0.08, 0]} end={[-1.35, -0.08, 0]} radius={0.055} />
+      <BondCylinder start={[0.05, 0.08, 0]} end={[1.35, 0.08, 0]} radius={0.055} />
+      <BondCylinder start={[0.05, -0.08, 0]} end={[1.35, -0.08, 0]} radius={0.055} />
+      <ElectronCloud center={[0, 0, 0]} radius={2.5} count={25} color="#fbbf24" speed={0.7} />
+    </group>
+  );
+}
+
+// ─── Molecule Scene ──────────────────────────────────────────────────
+function MoleculeScene({ molIndex }: { molIndex: number }) {
+  return (
+    <>
+      <ARLighting sunIntensity={1.2} sunPosition={[4, 6, 5]} ambientIntensity={0.4} />
+      <pointLight position={[0, 0, 3]} intensity={0.6} color="#ffffff" distance={10} />
+      <ShadowCatcherPlane position={[0, -2.5, 0]} />
+      <fog attach="fog" args={['#020509', 8, 18]} />
+
+      {molIndex === 0 && <WaterMolecule />}
+      {molIndex === 1 && <MethaneMolecule />}
+      {molIndex === 2 && <CO2Molecule />}
+    </>
+  );
+}
+
 export const ChemistryOverlay: React.FC<ChemistryOverlayProps> = ({ language, onSpeak }) => {
   const [molIndex, setMolIndex] = useState(0);
   const [selectedEl, setSelectedEl] = useState<string | null>(null);
@@ -69,20 +189,19 @@ export const ChemistryOverlay: React.FC<ChemistryOverlayProps> = ({ language, on
 
   return (
     <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', padding: '16px' }}>
-      {/* 3D Hologram Canvas */}
-      <HologramViewer
-        modelUrl="/models/dna.glb"
-        scale={3.0}
-        hologramColor={mol.hologramColor}
-        autoRotate={true}
-        rotateSpeed={0.3}
-        enableOrbitControls={true}
-        loadingLabel="Loading Molecular Hologram..."
-        onPartClick={(name) => {
-          setSelectedEl(name);
-          onSpeak(`${name} atom. ${mol.explanation[language]}`);
-        }}
-      />
+      {/* 3D Molecule Canvas */}
+      <div style={{ position: 'absolute', inset: 0, zIndex: 1 }}>
+        <Canvas
+          camera={{ position: [0, 1, 5], fov: 45 }}
+          shadows
+          gl={{ antialias: true, alpha: true, powerPreference: 'high-performance' }}
+          style={{ background: 'transparent' }}
+        >
+          <Suspense fallback={null}>
+            <MoleculeScene molIndex={molIndex} />
+          </Suspense>
+        </Canvas>
+      </div>
 
       {/* Top HUD */}
       <div style={{ position: 'relative', zIndex: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
