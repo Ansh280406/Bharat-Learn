@@ -190,7 +190,7 @@ export const ARContainer: React.FC<ARContainerProps> = ({
       <div className="interactive-container" style={{ position: 'relative' }}>
         {!showQuiz && (
           <>
-            {extractedInfo?.isLibrary ? (
+            {pageType !== 'unknown' ? (
               <>
                 {pageType === 'heart' && <HeartOverlay language={language} onSpeak={onSpeak} />}
                 {pageType === 'water_cycle' && <WaterCycleOverlay language={language} onSpeak={onSpeak} />}
@@ -199,7 +199,6 @@ export const ARContainer: React.FC<ARContainerProps> = ({
                 {pageType === 'history' && <BattleMapOverlay language={language} onSpeak={onSpeak} battleName={extractedInfo?.battleName} />}
                 {pageType === 'physics' && <PhysicsOverlay language={language} onSpeak={onSpeak} />}
                 {pageType === 'chemistry' && <ChemistryOverlay language={language} onSpeak={onSpeak} />}
-                {pageType === 'unknown' && <DynamicAIOverlay language={language} onSpeak={onSpeak} onReset={onReset} aiExplanation={aiExplanation} title={extractedInfo?.title} imagePrompt={extractedInfo?.hologramImagePrompt} labels={extractedInfo?.hologramLabels} hologramHtml={extractedInfo?.hologramHtml} wikipediaQuery={extractedInfo?.wikipediaQuery} />}
               </>
             ) : (
               <DynamicAIOverlay

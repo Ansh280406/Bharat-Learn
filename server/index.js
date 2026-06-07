@@ -367,6 +367,113 @@ app.get('/api/ar/library', (req, res) => {
   }
 });
 
+// ── Local Keyword Classifier (Offline/Sandbox Fallback) ───────
+const OFFLINE_MOCK_DATA = {
+  heart: {
+    extractedInfo: {
+      title: "Human Heart Anatomy",
+      details: "Beating 3D heart biology overlay.",
+      isLibrary: true,
+      wikipediaQuery: "Heart"
+    },
+    aiExplanation: "This textbook page covers Human Heart Anatomy. The human heart is a muscular organ that pumps blood through the circulatory system. In Class 10 NCERT Biology, you learn about its key components: the aorta, the left and right ventricles, and the valves that prevent backflow. You can tap the interactive labels on the model to learn about their specific functions."
+  },
+  water_cycle: {
+    extractedInfo: {
+      title: "Earth's Water Cycle",
+      details: "Interactive evaporation & rain overlay.",
+      isLibrary: true,
+      wikipediaQuery: "Water cycle"
+    },
+    aiExplanation: "This page describes the Water Cycle (Hydrological Cycle). In Class 7 Geography, we study how water constantly moves between the Earth's surface and the atmosphere. The key stages are Evaporation (water turning to vapor due to solar heat), Condensation (vapor cooling to form clouds), and Precipitation (rain or snow falling back to earth). Tap each label to see how water cycles through our ecosystem."
+  },
+  math: {
+    extractedInfo: {
+      title: "Algebra Equations",
+      details: "Tactile equation balancer.",
+      mathEquation: "2x + 4 = 10",
+      isLibrary: true
+    },
+    aiExplanation: "This page covers linear equations and algebra. In NCERT Class 8 Mathematics, we solve equations by maintaining balance on both sides of the equal sign. An equation like 2x + 4 = 10 represents a balanced scale where we isolate the variable x to find its value. Tap the interactive balancer to see the steps."
+  },
+  math_3d: {
+    extractedInfo: {
+      title: "3D Geometry Explorer",
+      details: "Visualize planes and vectors in 3D space.",
+      isLibrary: true,
+      wikipediaQuery: "Platonic solid"
+    },
+    aiExplanation: "This page covers 3D Geometry and Solid Figures. In NCERT Class 9 Surface Areas and Volumes, we study 3D shapes like cubes, spheres, and cones. Exploring these shapes in three dimensions helps us calculate their volumes and surface areas. Use the controls to rotate the 3D solid model and identify its vertices, edges, and faces."
+  },
+  history: {
+    extractedInfo: {
+      title: "Battle of Panipat (1526)",
+      details: "Mughal vs. Lodi historical map.",
+      battleName: "Battle of Panipat (1526)",
+      isLibrary: true
+    },
+    aiExplanation: "This page describes the historic First Battle of Panipat (1526). In Class 11 History, we study how Babur's smaller army defeated Ibrahim Lodi's massive force using advanced tactics like the Tulughma (encirclement) and chained carts (Araba) to shield his cannons. This victory marked the beginning of the Mughal Empire in India. Use the timeline slider to view each phase of the battle."
+  },
+  physics: {
+    extractedInfo: {
+      title: "Optics & Light Lab",
+      details: "Interactive light refraction lab.",
+      isLibrary: true,
+      wikipediaQuery: "Prism"
+    },
+    aiExplanation: "This page explains light refraction and dispersion through a glass prism. In Class 10 Physics, we study how white light splits into its constituent colors (VIBGYOR) when passing through a denser medium. This happens because different wavelengths of light bend at different angles due to different refractive indices in glass. Tap the labels to see how refraction works."
+  },
+  chemistry: {
+    extractedInfo: {
+      title: "Organic Chemistry",
+      details: "3D molecular bond visualization.",
+      isLibrary: true,
+      wikipediaQuery: "Methane"
+    },
+    aiExplanation: "This page covers Organic Compounds and Molecular Bonding. In NCERT Class 9 & 10 Chemistry, we learn about molecules like Water (H₂O) and Methane (CH₄). Atoms share electrons to form covalent bonds, creating specific geometric angles like the 104.5° bent structure of water or the 109.5° tetrahedral shape of methane. Explore the 3D structures in the viewer."
+  },
+  unknown: {
+    extractedInfo: {
+      title: "AI Educational Companion",
+      details: "Interactive 3D shape overview.",
+      isLibrary: true
+    },
+    aiExplanation: "⚠️ Sandbox Mode. Add GEMINI_API_KEY to server/.env to enable real AI classification of custom topics."
+  }
+};
+
+function classifyTextLocally(text) {
+  const cleanText = (text || '').toLowerCase();
+  
+  const keywords = {
+    heart: ['heart', 'ventricle', 'aorta', 'atrium', 'circulatory', 'blood', 'cardiac', 'valve'],
+    water_cycle: ['water cycle', 'evaporation', 'condensation', 'precipitation', 'runoff', 'transpiration', 'aquifer', 'rain', 'cloud'],
+    math_3d: ['geometry', 'cube', 'sphere', 'cone', 'cylinder', 'torus', 'surface area', 'volume', 'dimension', '3d shape'],
+    math: ['equation', 'algebra', 'solve', 'x +', 'x -', 'variable', 'linear equation', 'quadratic', 'mathematics'],
+    physics: ['motion', 'force', 'gravity', 'optics', 'prism', 'refraction', 'newton', 'wavelength', 'spectrum', 'light ray', 'dispersion'],
+    chemistry: ['molecule', 'atom', 'bond', 'chemical', 'reaction', 'methane', 'co2', 'h2o', 'compound', 'covalent', 'organic chemistry', 'propanal', 'aldehyde'],
+    history: ['battle', 'panipat', 'babur', 'lodi', 'mughal', 'empire', 'french revolution', 'bastille', 'louis xvi', 'history', 'dynasty', 'battlefield']
+  };
+
+  let bestCategory = 'unknown';
+  let maxScore = 0;
+
+  for (const [category, words] of Object.entries(keywords)) {
+    let score = 0;
+    for (const word of words) {
+      if (cleanText.includes(word)) {
+        score++;
+      }
+    }
+    if (score > maxScore) {
+      maxScore = score;
+      bestCategory = category;
+    }
+  }
+
+  return { pageType: bestCategory, score: maxScore };
+}
+
 // ── /api/classify-text ─────────────────────────────────────────
 // PRIMARY scan endpoint: client sends OCR-extracted text → Gemini
 // classifies it into a pageType and generates a fresh explanation.
@@ -380,16 +487,36 @@ app.post('/api/classify-text', async (req, res) => {
   const geminiKey    = process.env.GEMINI_API_KEY;
   const anthropicKey = process.env.ANTHROPIC_API_KEY;
 
-  // Sandbox fallback
+  // Sandbox fallback using local keyword classifier
   if (!geminiKey && !anthropicKey) {
-    console.warn('⚠️  No API key — returning sandbox mock for classify-text.');
+    console.warn('⚠️  No API key — running local classifier fallback for classify-text.');
+    const classification = classifyTextLocally(text);
+    const pageType = classification.pageType;
+    const mockData = OFFLINE_MOCK_DATA[pageType] || OFFLINE_MOCK_DATA.unknown;
+    
+    // Auto-save offline classification to DB
+    try {
+      db.prepare(`
+        INSERT INTO scan_history (page_type, title, explanation, confidence)
+        VALUES (?, ?, ?, ?)
+      `).run(
+        pageType,
+        mockData.extractedInfo.title,
+        mockData.aiExplanation,
+        pageType === 'unknown' ? 0.5 : 0.95
+      );
+      console.log(`💾 Saved offline scan: ${pageType} — "${mockData.extractedInfo.title}"`);
+    } catch (dbErr) {
+      console.warn('⚠️ DB save failed:', dbErr.message);
+    }
+
     return res.json({
       status: 'success',
       mode: 'sandbox_fallback',
-      pageType: 'unknown',
-      confidence: 0.5,
-      extractedInfo: { title: 'Sandbox Mode', details: 'Add GEMINI_API_KEY to server/.env.' },
-      aiExplanation: '⚠️ Sandbox Mode. Add GEMINI_API_KEY to enable real AI.'
+      pageType: pageType,
+      confidence: pageType === 'unknown' ? 0.5 : 0.95,
+      extractedInfo: mockData.extractedInfo,
+      aiExplanation: mockData.aiExplanation
     });
   }
 
@@ -419,6 +546,8 @@ Return ONLY valid JSON:
   "extractedInfo": {
     "title": "<short descriptive title>",
     "details": "<one short sentence summary>",
+    "mathEquation": "<the equation string if pageType is math, else null>",
+    "battleName": "<the battle or map name if pageType is history, else null>",
     "hologramImagePrompt": "detailed anatomical illustration of <concept>, glowing neon style, black background, educational, vibrant",
     "hologramLabels": [
       {
@@ -527,8 +656,37 @@ ${text.trim()}
     res.json(parsedResult);
 
   } catch (error) {
-    console.error('❌ classify-text error:', error.message);
-    res.status(500).json({ error: `Server error: ${error.message}` });
+    console.warn('❌ classify-text API error, falling back to local classification:', error.message);
+    
+    // Fail-safe local classifier fallback
+    const classification = classifyTextLocally(text);
+    const pageType = classification.pageType;
+    const mockData = OFFLINE_MOCK_DATA[pageType] || OFFLINE_MOCK_DATA.unknown;
+    
+    // Auto-save to scan_history
+    try {
+      db.prepare(`
+        INSERT INTO scan_history (page_type, title, explanation, confidence)
+        VALUES (?, ?, ?, ?)
+      `).run(
+        pageType,
+        mockData.extractedInfo.title,
+        mockData.aiExplanation,
+        pageType === 'unknown' ? 0.5 : 0.95
+      );
+      console.log(`💾 Saved offline scan (fail-safe): ${pageType} — "${mockData.extractedInfo.title}"`);
+    } catch (dbErr) {
+      console.warn('⚠️ DB save failed:', dbErr.message);
+    }
+
+    res.json({
+      status: 'success',
+      mode: 'offline_api_error_fallback',
+      pageType: pageType,
+      confidence: pageType === 'unknown' ? 0.5 : 0.95,
+      extractedInfo: mockData.extractedInfo,
+      aiExplanation: mockData.aiExplanation
+    });
   }
 });
 

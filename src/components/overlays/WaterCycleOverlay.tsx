@@ -1,8 +1,7 @@
 import React, { useState, Suspense } from 'react';
 import type { Language, PartExplanation } from '../../types';
 import { Volume2 } from 'lucide-react';
-import { Canvas, useFrame } from '@react-three/fiber';
-import { Float, Html } from '@react-three/drei';
+import { Canvas } from '@react-three/fiber';
 import {
   TerrainMesh,
   WaterBody,

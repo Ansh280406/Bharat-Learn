@@ -56,12 +56,10 @@ function ArmyUnit({
   position,
   color,
   count = 5,
-  label,
 }: {
   position: [number, number, number];
   color: string;
   count?: number;
-  label?: string;
 }) {
   const groupRef = useRef<THREE.Group>(null!);
 
@@ -258,7 +256,7 @@ function BattleScene({ phaseIdx }: { phaseIdx: number }) {
       />
 
       {/* Mughal Army (Blue) — left side */}
-      <ArmyUnit position={[-3, -1.7, 0]} color="#3b82f6" count={6} label="Babur" />
+      <ArmyUnit position={[-3, -1.7, 0]} color="#3b82f6" count={6} />
       <ArmyUnit position={[-3, -1.7, -1]} color="#3b82f6" count={4} />
 
       {/* Cannons chained carts */}
@@ -269,7 +267,7 @@ function BattleScene({ phaseIdx }: { phaseIdx: number }) {
       {/* Lodi Army (Red) — right side */}
       {phaseIdx < 3 && (
         <>
-          <ArmyUnit position={[2.5, -1.7, 0]} color="#ef4444" count={8} label="Lodi" />
+          <ArmyUnit position={[2.5, -1.7, 0]} color="#ef4444" count={8} />
           <ArmyUnit position={[2.5, -1.7, -1]} color="#ef4444" count={6} />
           <ArmyUnit position={[3, -1.7, 0.5]} color="#ef4444" count={4} />
           {/* War elephants */}

@@ -1,9 +1,8 @@
-import React, { useEffect, useState, useMemo, Suspense } from 'react';
+import React, { useEffect, useState } from 'react';
 import type { Language } from '../../types';
 import { ScanLine, Volume2, RefreshCw, ChevronDown, ChevronUp, Info, X } from 'lucide-react';
 import { CustomARScene, hasCustomARScene, CUSTOM_AR_SCENES } from '../ar/CustomARScene';
 import { HologramViewer } from '../three/HologramViewer';
-import { HolographicRing } from '../three/VolumetricScenes';
 
 interface HologramLabel {
   id: string;

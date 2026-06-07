@@ -1,8 +1,8 @@
-import React, { useState, Suspense, useRef, useMemo } from 'react';
+import React, { useState, Suspense, useRef } from 'react';
 import type { Language } from '../../types';
 import { Volume2, Box, RotateCw } from 'lucide-react';
 import { Canvas, useFrame } from '@react-three/fiber';
-import { Html, OrbitControls, Float } from '@react-three/drei';
+import { OrbitControls, Float } from '@react-three/drei';
 import * as THREE from 'three';
 import { ARLighting, ShadowCatcherPlane } from '../three/VolumetricScenes';
 
